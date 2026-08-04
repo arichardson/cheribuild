@@ -26,13 +26,21 @@
 
 import os
 
-from .crosscompileproject import CrossCompileMakefileProject, DefaultInstallDir, GitRepository, MakeCommandKind
+from .crosscompileproject import (
+    CrossCompileCMakeProject,
+    CrossCompileMakefileProject,
+    DefaultInstallDir,
+    GitRepository,
+    MakeCommandKind,
+)
 from ...config.compilation_targets import CompilationTargets
 from ...utils import classproperty
 
 
 class BuildCheriOSTest(CrossCompileMakefileProject):
-    _supported_architectures = CompilationTargets.ALL_LINUX_PURECAP_TARGETS
+    _supported_architectures = (
+        CompilationTargets.ALL_LINUX_PURECAP_TARGETS + CompilationTargets.ALL_CHERIBSD_PURECAP_TARGETS
+    )
     target = "cheri-os-test"
     make_kind = MakeCommandKind.BsdMake
     repository = GitRepository("https://github.com/CTSRD-CHERI/cheri-os-test.git", default_branch="preview")
@@ -43,6 +51,8 @@ class BuildCheriOSTest(CrossCompileMakefileProject):
 
     @classmethod
     def dependencies(cls, config) -> "tuple[str, ...]":
+        if cls.get_crosscompile_target().target_info_cls.is_freebsd():
+            return ()  # No need for extra libraries
         return "libxo", "libbsd"
 
     def setup(self) -> None:
@@ -95,3 +105,22 @@ class BuildCheriOSTest(CrossCompileMakefileProject):
     def process(self):
         self.check_required_system_tool("bmake", homebrew="bmake", cheribuild_target="bmake")
         super().process()
+
+
+class BuildCheriOSTestCmake(CrossCompileCMakeProject):
+    _supported_architectures = (
+        CompilationTargets.ALL_LINUX_PURECAP_TARGETS + CompilationTargets.ALL_CHERIBSD_PURECAP_TARGETS
+    )
+    target = "cheri-os-test-cmake"
+    repository = GitRepository(
+        "https://github.com/CTSRD-CHERI/cheri-os-test.git",
+        default_branch="dev",
+        temporary_url_override="https://github.com/arichardson/cheri-os-test.git",
+        url_override_reason="Add CMake build system and CheriBSD fixes",
+    )
+
+    @classmethod
+    def dependencies(cls, config) -> "tuple[str, ...]":
+        if cls.get_crosscompile_target().target_info_cls.is_freebsd():
+            return ()  # No need for extra libraries
+        return "libxo", "libbsd"
