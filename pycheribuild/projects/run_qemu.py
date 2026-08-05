@@ -36,7 +36,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Optional
 
-from .build_qemu import BuildCheriAllianceQEMU, BuildQEMU, BuildQEMUBase, BuildRVYQEMU, BuildUpstreamQEMU
+from .build_qemu import BuildQEMU, BuildQEMUBase, BuildRVYQEMU, BuildUpstreamQEMU
 from .cross.bbl import BuildBBLNoPayload
 from .cross.cheribsd import BuildCHERIBSD, BuildCheriBsdMfsKernel, BuildFreeBSD, ConfigPlatform, KernelABI
 from .cross.gdb import get_native_gdb_binary_to_debug_target
@@ -294,7 +294,7 @@ class LaunchQEMUBase(SimpleProject):
             if xtarget.is_riscv_y():
                 supported_qemu_classes += [BuildRVYQEMU]
             elif xtarget.is_experimental_cheri093_std():
-                supported_qemu_classes += [BuildCheriAllianceQEMU]
+                supported_qemu_classes += [BuildQEMU]
             else:
                 supported_qemu_classes += [BuildQEMU]
             if not xtarget.is_hybrid_or_purecap_cheri():
