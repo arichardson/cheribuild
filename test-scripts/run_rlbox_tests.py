@@ -33,7 +33,7 @@ from pathlib import Path
 from run_tests_common import boot_cheribsd, run_tests_main
 
 
-def run_rlbox_tests(qemu: boot_cheribsd.CheriBSDInstance, args: argparse.Namespace) -> bool:
+def run_rlbox_tests(qemu: boot_cheribsd.GuestInstance, args: argparse.Namespace) -> bool:
     boot_cheribsd.set_ld_library_path_with_sysroot(qemu)
     # Note: CTest does not work with cross-compiled Catch2
     # Run all tests manually until https://github.com/catchorg/Catch2/issues/2223 is fixed

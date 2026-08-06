@@ -30,7 +30,7 @@ import argparse
 from run_tests_common import boot_cheribsd, run_tests_main
 
 
-def run_ros2_tests(qemu: boot_cheribsd.CheriBSDInstance, _: argparse.Namespace) -> bool:
+def run_ros2_tests(qemu: boot_cheribsd.GuestInstance, _: argparse.Namespace) -> bool:
     boot_cheribsd.info("Running ROS2 tests")
     boot_cheribsd.set_ld_library_path_with_sysroot(qemu)
     qemu.checked_run("cd /source && sh -xe ./run-ros2-tests.sh", timeout=240 * 60)

@@ -35,7 +35,7 @@ import os
 from run_tests_common import boot_cheribsd, run_tests_main
 
 
-def run_libcxxrt_tests(qemu: boot_cheribsd.CheriBSDInstance, _: argparse.Namespace) -> bool:
+def run_libcxxrt_tests(qemu: boot_cheribsd.GuestInstance, _: argparse.Namespace) -> bool:
     boot_cheribsd.info("Running libcxxrt tests")
     boot_cheribsd.set_ld_library_path_with_sysroot(qemu)
     qemu.run("export LIBUNWIND_PRINT_UNWINDING=1", timeout=2)

@@ -47,7 +47,7 @@ from pycheribuild.utils import get_global_config
 
 
 def run_cheribsdtest(
-    qemu: boot_cheribsd.QemuCheriBSDInstance,
+    qemu: boot_cheribsd.QemuGuestInstance,
     binary_name,
     old_binary_names,
     optional,
@@ -104,7 +104,7 @@ def run_cheribsdtest(
         return False
 
 
-def run_cheribsd_test(qemu: boot_cheribsd.QemuCheriBSDInstance, args: argparse.Namespace):
+def run_cheribsd_test(qemu: boot_cheribsd.QemuGuestInstance, args: argparse.Namespace):
     boot_cheribsd.success("Booted successfully")
     qemu.checked_run("kenv")
     # unchecked since mount_smbfs returns non-zero for --help:

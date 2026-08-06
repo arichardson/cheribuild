@@ -34,7 +34,7 @@ import argparse
 from run_tests_common import boot_cheribsd, run_tests_main
 
 
-def run_postgres_tests(qemu: boot_cheribsd.QemuCheriBSDInstance, args: argparse.Namespace) -> bool:
+def run_postgres_tests(qemu: boot_cheribsd.QemuGuestInstance, args: argparse.Namespace) -> bool:
     boot_cheribsd.info("Running PostgreSQL tests")
     if args.minimal_image:
         qemu.checked_run("ln -s /locale /usr/share/locale")

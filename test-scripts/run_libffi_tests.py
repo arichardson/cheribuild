@@ -32,7 +32,7 @@ from pathlib import Path
 from run_tests_common import boot_cheribsd, run_tests_main
 
 
-def run_libffi_tests(qemu: boot_cheribsd.QemuCheriBSDInstance, args: argparse.Namespace) -> bool:
+def run_libffi_tests(qemu: boot_cheribsd.QemuGuestInstance, args: argparse.Namespace) -> bool:
     boot_cheribsd.info("Running libffi tests")
     print(args)
     # copy the shared libraries to the host and link to /usr/lib so that the tests can run:

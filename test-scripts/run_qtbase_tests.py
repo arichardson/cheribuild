@@ -43,7 +43,7 @@ from run_tests_common import (
 )
 
 
-def setup_qtbase_tests(qemu: boot_cheribsd.QemuCheriBSDInstance, args: argparse.Namespace):
+def setup_qtbase_tests(qemu: boot_cheribsd.QemuGuestInstance, args: argparse.Namespace):
     if args.junit_xml is None:
         time_suffix = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%d-%H%M%S")
         args.junit_xml = Path(args.build_dir, ("test-results-" + time_suffix + ".xml"))
@@ -80,7 +80,7 @@ def setup_qtbase_tests(qemu: boot_cheribsd.QemuCheriBSDInstance, args: argparse.
         boot_cheribsd.prepend_ld_library_path(qemu, "/build/lib")
 
 
-def copy_qt_libs_to_tmpfs_and_set_libpath(qemu: boot_cheribsd.QemuCheriBSDInstance, args):
+def copy_qt_libs_to_tmpfs_and_set_libpath(qemu: boot_cheribsd.QemuGuestInstance, args):
     # Copy the libraries to tmpfs to avoid long loading times over smbfs
     qemu.checked_run("mkdir /tmp/qt-libs")
     num_libs = 0
@@ -104,7 +104,7 @@ def copy_qt_libs_to_tmpfs_and_set_libpath(qemu: boot_cheribsd.QemuCheriBSDInstan
     boot_cheribsd.prepend_ld_library_path(qemu, "/tmp/qt-libs")
 
 
-def run_subdir(qemu: boot_cheribsd.CheriBSDInstance, subdir: Path, xml: junitparser.JUnitXml, build_dir: Path):
+def run_subdir(qemu: boot_cheribsd.GuestInstance, subdir: Path, xml: junitparser.JUnitXml, build_dir: Path):
     tests = []
     for root, dirs, files in os.walk(str(subdir), topdown=True):
         for name in files:
@@ -168,7 +168,7 @@ def add_junit_failure(
     xml.add_testsuite(suite)
 
 
-def run_qtbase_tests(qemu: boot_cheribsd.CheriBSDInstance, args: argparse.Namespace):
+def run_qtbase_tests(qemu: boot_cheribsd.GuestInstance, args: argparse.Namespace):
     # TODO: also run the non-corelib tests
     xml = junitparser.JUnitXml()
     build_dir = Path(args.build_dir)

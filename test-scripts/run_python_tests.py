@@ -35,7 +35,7 @@ from pathlib import Path
 from run_tests_common import boot_cheribsd, run_tests_main
 
 
-def run_tests(qemu: boot_cheribsd.CheriBSDInstance, args: argparse.Namespace) -> bool:
+def run_tests(qemu: boot_cheribsd.GuestInstance, args: argparse.Namespace) -> bool:
     boot_cheribsd.info("Running Python tests")
     # Need the library path for libpython.so
     boot_cheribsd.prepend_ld_library_path(qemu, "/build")

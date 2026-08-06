@@ -37,14 +37,14 @@ from run_tests_common import (
 )
 
 
-def setup_webkit_tests(qemu: boot_cheribsd.CheriBSDInstance, _: argparse.Namespace) -> None:
+def setup_webkit_tests(qemu: boot_cheribsd.GuestInstance, _: argparse.Namespace) -> None:
     qemu.checked_run(
         f"export LD_LIBRARY_PATH=/opt/{qemu.xtarget.generic_arch_suffix}/webkit/lib:"
         f"/usr/local/{qemu.xtarget.generic_arch_suffix}/lib/",
     )
 
 
-def run_webkit_tests(qemu: boot_cheribsd.CheriBSDInstance, args: argparse.Namespace) -> bool:
+def run_webkit_tests(qemu: boot_cheribsd.GuestInstance, args: argparse.Namespace) -> bool:
     boot_cheribsd.info("Running SunSpider jsc tests")
     sunspider_tests = [
         "3d-cube.js",

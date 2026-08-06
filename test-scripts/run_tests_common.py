@@ -52,7 +52,7 @@ import junitparser  # noqa: E402
 import pexpect  # noqa: E402
 
 from pycheribuild import boot_cheribsd  # noqa: E402
-from pycheribuild.boot_cheribsd import QemuCheriBSDInstance  # noqa: E402
+from pycheribuild.boot_cheribsd import QemuGuestInstance  # noqa: E402
 from pycheribuild.config.target_info import CrossCompileTarget  # noqa: E402
 from pycheribuild.processutils import commandline_to_str  # noqa: E402
 from pycheribuild.utils import get_global_config  # noqa: E402
@@ -148,14 +148,14 @@ def finish_and_write_junit_xml_report(
 
 
 def run_tests_main(
-    test_function: Optional[Callable[[QemuCheriBSDInstance, argparse.Namespace], bool]] = None,
+    test_function: Optional[Callable[[QemuGuestInstance, argparse.Namespace], bool]] = None,
     need_ssh=False,
     should_mount_builddir=True,
     should_mount_srcdir=False,
     should_mount_sysroot=False,
     should_mount_installdir=False,
     build_dir_in_target: "Optional[str]" = None,
-    test_setup_function: Optional[Callable[[QemuCheriBSDInstance, argparse.Namespace], None]] = None,
+    test_setup_function: Optional[Callable[[QemuGuestInstance, argparse.Namespace], None]] = None,
     argparse_setup_callback: Optional[Callable[[argparse.ArgumentParser], None]] = None,
     argparse_adjust_args_callback: Optional[Callable[[argparse.Namespace], None]] = None,
 ):
@@ -209,7 +209,7 @@ def run_tests_main(
         if argparse_adjust_args_callback:
             argparse_adjust_args_callback(args)
 
-    def default_setup_tests(qemu: QemuCheriBSDInstance, args: argparse.Namespace):
+    def default_setup_tests(qemu: QemuGuestInstance, args: argparse.Namespace):
         if should_mount_builddir or args.build_dir:
             qemu.checked_run(f"ln -sf '{args.build_dir}' /build", timeout=60)
         if should_mount_srcdir or args.source_dir:

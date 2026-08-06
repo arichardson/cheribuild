@@ -237,7 +237,7 @@ else:
 PatternListType = Sequence[Union[str, typing.Pattern, type[pexpect.ExceptionPexpect]]]
 
 
-class CheriBSDSpawnMixin(MixinBase):
+class GuestSpawnMixin(MixinBase):
     EXIT_ON_KERNEL_PANIC = True
 
     def expect_exact_ignore_panic(self, patterns, *, timeout: int):
@@ -322,7 +322,7 @@ class CheriBSDSpawnMixin(MixinBase):
         ignore_cheri_trap=False,
         timeout=600,
     ):
-        run_cheribsd_command(
+        run_guest_command(
             self,
             cmd,
             expected_output=expected_output,
@@ -335,19 +335,19 @@ class CheriBSDSpawnMixin(MixinBase):
     def checked_run(
         self, cmd: str, *, timeout=600, ignore_cheri_trap=False, error_output: "Optional[str]" = None, **kwargs
     ):
-        checked_run_cheribsd_command(
+        checked_run_guest_command(
             self, cmd, timeout=timeout, ignore_cheri_trap=ignore_cheri_trap, error_output=error_output, **kwargs
         )
 
 
-class CheriBSDInstance(CheriBSDSpawnMixin, pexpect.spawn):
+class GuestInstance(GuestSpawnMixin, pexpect.spawn):
     def __init__(self, xtarget: CrossCompileTarget, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.xtarget = xtarget
         self.sendchunksize = 100  # sleep after 100 sent chars
 
 
-class QemuCheriBSDInstance(CheriBSDInstance):
+class QemuGuestInstance(GuestInstance):
     EXIT_ON_KERNEL_PANIC = True
     shared_dirs: "list[SharedMount]"
     flush_interval = None
@@ -528,7 +528,7 @@ def is_newer(path1: Path, path2: Path):
     return path1.stat().st_ctime > path2.stat().st_ctime
 
 
-def prepend_ld_library_path(qemu: CheriBSDInstance, path: str):
+def prepend_ld_library_path(qemu: GuestInstance, path: str):
     qemu.run("export LD_LIBRARY_PATH=" + path + ':$LD_LIBRARY_PATH; echo "$LD_LIBRARY_PATH"', timeout=3)
     qemu.run("export LD_64C_LIBRARY_PATH=" + path + ':$LD_64C_LIBRARY_PATH; echo "$LD_64C_LIBRARY_PATH"', timeout=3)
     qemu.run(
@@ -536,7 +536,7 @@ def prepend_ld_library_path(qemu: CheriBSDInstance, path: str):
     )
 
 
-def set_ld_library_path_with_sysroot(qemu: CheriBSDInstance):
+def set_ld_library_path_with_sysroot(qemu: GuestInstance):
     non_cheri_libdir = "lib64"
     cheri_libdir = "lib64c"
     if not qemu.xtarget.is_hybrid_or_purecap_cheri():
@@ -619,7 +619,7 @@ def maybe_decompress(
     return path
 
 
-def debug_kernel_panic(qemu: CheriBSDSpawnMixin):
+def debug_kernel_panic(qemu: GuestSpawnMixin):
     failure("Trying to get a stack trace for kernel panic: ", qemu.match, exit=False)
     # wait up to 10 seconds for a db prompt
     # Note: this uses expect_exact_ignore_panic() to avoid infinite recursion if FreeBSD is stuck in a panic loop
@@ -650,8 +650,8 @@ SH_PROGRAM_NOT_FOUND = re.compile(r"/bin/sh: [/\w_-]+: not found")
 RTLD_DSO_NOT_FOUND = re.compile(r'ld-elf[\w_-]*.so.1: Shared object ".+" not found, required by ".+"')
 
 
-def run_cheribsd_command(
-    qemu: CheriBSDSpawnMixin,
+def run_guest_command(
+    qemu: GuestSpawnMixin,
     cmd: str,
     expected_output=None,
     error_output=None,
@@ -708,8 +708,8 @@ def run_cheribsd_command(
             failure("Got CHERI TRAP!", exit=False)
 
 
-def checked_run_cheribsd_command(
-    qemu: CheriBSDSpawnMixin,
+def checked_run_guest_command(
+    qemu: GuestSpawnMixin,
     cmd: str,
     timeout=600,
     ignore_cheri_trap=False,
@@ -775,7 +775,7 @@ def checked_run_cheribsd_command(
         )
 
 
-def setup_ssh_for_root_login(qemu: QemuCheriBSDInstance):
+def setup_ssh_for_root_login(qemu: QemuGuestInstance):
     pubkey = qemu.ssh_public_key
     assert pubkey is not None
     assert isinstance(pubkey, Path)
@@ -796,7 +796,7 @@ def setup_ssh_for_root_login(qemu: QemuCheriBSDInstance):
     qemu.run("echo 'PermitRootLogin without-password' >> /etc/ssh/sshd_config")
     # TODO: check for bluehive images without /sbin/service
     qemu.run("cat /root/.ssh/authorized_keys", expected_output="ssh-")
-    checked_run_cheribsd_command(qemu, "grep -n PermitRootLogin /etc/ssh/sshd_config")
+    checked_run_guest_command(qemu, "grep -n PermitRootLogin /etc/ssh/sshd_config")
     qemu.sendline("service sshd restart")
     try:
         qemu.expect(["service: not found", "Starting sshd.", "Cannot 'restart' sshd."], timeout=240)
@@ -822,7 +822,7 @@ def _set_pexpect_sh_prompt(child):
 
 
 # noinspection PyMethodMayBeStatic,PyUnusedLocal
-class FakeQemuSpawn(QemuCheriBSDInstance):
+class FakeQemuSpawn(QemuGuestInstance):
     def __init__(self, qemu_config: QemuOptions, *args, **kwargs):
         # Just start cat for --pretend mode
         kwargs["timeout"] = 1
@@ -847,10 +847,10 @@ class FakeQemuSpawn(QemuCheriBSDInstance):
         pass
 
     def run(self, cmd, **kwargs):
-        run_cheribsd_command(self, cmd, **kwargs)
+        run_guest_command(self, cmd, **kwargs)
 
     def checked_run(self, cmd, **kwargs):
-        checked_run_cheribsd_command(self, cmd, **kwargs)
+        checked_run_guest_command(self, cmd, **kwargs)
 
     def check_ssh_connection(self, prefix="SSH connection:"):
         success(prefix, "checked SSH connection")
@@ -869,7 +869,7 @@ class FakeQemuSpawn(QemuCheriBSDInstance):
         info("Interacting (fake) ...")
 
 
-def start_dhclient(qemu: CheriBSDSpawnMixin, network_iface: str):
+def start_dhclient(qemu: GuestSpawnMixin, network_iface: str):
     success("===> Setting up QEMU networking")
     qemu.sendline(f"ifconfig {network_iface} up && dhclient {network_iface}")
     i = qemu.expect(
@@ -892,7 +892,7 @@ def start_dhclient(qemu: CheriBSDSpawnMixin, network_iface: str):
     qemu.expect_prompt(timeout=30)
 
 
-def boot_cheribsd(
+def boot_guest(
     qemu_options: QemuOptions,
     qemu_command: Optional[Path],
     kernel_image: Optional[Path],
@@ -909,7 +909,7 @@ def boot_cheribsd(
     skip_ssh_setup=False,
     bios_path: "Optional[Path]" = None,
     boot_alternate_kernel_dir: "Optional[Path]" = None,
-) -> QemuCheriBSDInstance:
+) -> QemuGuestInstance:
     user_network_args = ""
     extra_qemu_args = []
     if shared_dirs is None:
@@ -971,7 +971,7 @@ def boot_cheribsd(
     qemu_starttime = datetime.datetime.now()
     if _SSH_SOCKET_PLACEHOLDER is not None:
         _SSH_SOCKET_PLACEHOLDER.close()
-    qemu_cls = QemuCheriBSDInstance
+    qemu_cls = QemuGuestInstance
     if get_global_config().pretend:
         qemu_cls = FakeQemuSpawn
     child = qemu_cls(
@@ -1009,7 +1009,7 @@ def boot_cheribsd(
 
 
 def boot_and_login(
-    child: CheriBSDSpawnMixin,
+    child: GuestSpawnMixin,
     *,
     starttime,
     kernel_init_only=False,
@@ -1169,11 +1169,11 @@ def boot_and_login(
 
 
 def _do_test_setup(
-    qemu: QemuCheriBSDInstance,
+    qemu: QemuGuestInstance,
     args: argparse.Namespace,
     test_archives: "list[Path]",
     test_ld_preload_files: "list[Path]",
-    test_setup_function: "Optional[Callable[[QemuCheriBSDInstance, argparse.Namespace], None]]" = None,
+    test_setup_function: "Optional[Callable[[QemuGuestInstance, argparse.Namespace], None]]" = None,
 ):
     shared_dirs = qemu.shared_dirs
     setup_tests_starttime = datetime.datetime.now()
@@ -1251,7 +1251,7 @@ def _do_test_setup(
             ld_preload_target_paths.append(str(Path("/tmp/preload", lib.name)))
 
     # List all available file system modules to check for 9P availability
-    run_cheribsd_command(qemu, "find $(sysctl -n kern.module_path | tr ';' ' ') -maxdepth 1 -name \"*fs.ko\" -print")
+    run_guest_command(qemu, "find $(sysctl -n kern.module_path | tr ';' ' ') -maxdepth 1 -name \"*fs.ko\" -print")
 
     for index, d in enumerate(shared_dirs):
         qemu.run(f"mkdir -p '{d.in_target}'")
@@ -1279,13 +1279,13 @@ def _do_test_setup(
 
     for lib in ld_preload_target_paths:
         # Ensure that the libraries exist
-        checked_run_cheribsd_command(qemu, f"test -x '{lib}'")
+        checked_run_guest_command(qemu, f"test -x '{lib}'")
     if ld_preload_target_paths:
-        checked_run_cheribsd_command(
+        checked_run_guest_command(
             qemu, "export '{}={}'".format(args.test_ld_preload_variable, ":".join(ld_preload_target_paths))
         )
         if args.test_ld_preload_variable == "LD_64C_PRELOAD":
-            checked_run_cheribsd_command(
+            checked_run_guest_command(
                 qemu, "export '{}={}'".format("LD_CHERI_PRELOAD", ":".join(ld_preload_target_paths))
             )
 
@@ -1298,10 +1298,10 @@ def _do_test_setup(
         success("Additional test enviroment setup took ", datetime.datetime.now() - setup_tests_starttime)
 
 
-def mount_via_p9fs(d: SharedMount, qemu: QemuCheriBSDInstance, share_name: str) -> bool:
+def mount_via_p9fs(d: SharedMount, qemu: QemuGuestInstance, share_name: str) -> bool:
     try:
         ro_flag = ",ro" if d.readonly else ""
-        checked_run_cheribsd_command(
+        checked_run_guest_command(
             qemu,
             f"kldload -n virtio_p9fs && mount -t p9fs -o trans=virtio{ro_flag} {share_name} '{d.in_target}'",
         )
@@ -1313,7 +1313,7 @@ def mount_via_p9fs(d: SharedMount, qemu: QemuCheriBSDInstance, share_name: str) 
         if qemu.cheribsd_issue_2617_fixed is None:
             try:
                 # Check if we are affected by https://github.com/CTSRD-CHERI/cheribsd/issues/2617
-                checked_run_cheribsd_command(
+                checked_run_guest_command(
                     qemu,
                     f"echo test > /tmp/issue_2617.txt && mv -f /tmp/issue_2617.txt {d.in_target}/issue_2617.txt",
                     pretend_result=1,
@@ -1322,8 +1322,8 @@ def mount_via_p9fs(d: SharedMount, qemu: QemuCheriBSDInstance, share_name: str) 
             except CommandFailedError:
                 info("P9FS driver is not new enough to support running tests. Will unmount again.")
                 qemu.cheribsd_issue_2617_fixed = False
-                checked_run_cheribsd_command(qemu, f"rm -f /tmp/issue_2617.txt {d.in_target}/issue_2617.txt")
-                checked_run_cheribsd_command(qemu, f"umount {d.in_target}")
+                checked_run_guest_command(qemu, f"rm -f /tmp/issue_2617.txt {d.in_target}/issue_2617.txt")
+                checked_run_guest_command(qemu, f"umount {d.in_target}")
                 d.mounted = False
                 return False
         if qemu.cheribsd_issue_2617_fixed is False:
@@ -1332,10 +1332,10 @@ def mount_via_p9fs(d: SharedMount, qemu: QemuCheriBSDInstance, share_name: str) 
     return True
 
 
-def mount_via_smb(d: SharedMount, qemu: QemuCheriBSDInstance, share_name: str) -> bool:
+def mount_via_smb(d: SharedMount, qemu: QemuGuestInstance, share_name: str) -> bool:
     for trial in range(MAX_SMBFS_RETRY if not get_global_config().pretend else 1):  # maximum of 3 trials
         try:
-            checked_run_cheribsd_command(
+            checked_run_guest_command(
                 qemu,
                 f"mount_smbfs -I 10.0.2.4 -N //10.0.2.4/{share_name} '{d.in_target}'",
                 error_output="unable to open connection: syserr = ",
@@ -1364,12 +1364,12 @@ def mount_via_smb(d: SharedMount, qemu: QemuCheriBSDInstance, share_name: str) -
 
 
 def runtests(
-    qemu: QemuCheriBSDInstance,
+    qemu: QemuGuestInstance,
     args: argparse.Namespace,
     test_archives: "list[Path]",
     test_ld_preload_files: "list[Path]",
-    test_setup_function: "Optional[Callable[[QemuCheriBSDInstance, argparse.Namespace], None]]" = None,
-    test_function: "Optional[Callable[[QemuCheriBSDInstance, argparse.Namespace], bool]]" = None,
+    test_setup_function: "Optional[Callable[[QemuGuestInstance, argparse.Namespace], None]]" = None,
+    test_function: "Optional[Callable[[QemuGuestInstance, argparse.Namespace], bool]]" = None,
 ) -> bool:
     try:
         _do_test_setup(qemu, args, test_archives, test_ld_preload_files, test_setup_function)
@@ -1549,8 +1549,8 @@ def get_argument_parser() -> argparse.ArgumentParser:
 
 
 def _main(
-    test_function: "Optional[Callable[[QemuCheriBSDInstance, argparse.Namespace], bool]]" = None,
-    test_setup_function: "Optional[Callable[[QemuCheriBSDInstance, argparse.Namespace], None]]" = None,
+    test_function: "Optional[Callable[[QemuGuestInstance, argparse.Namespace], bool]]" = None,
+    test_setup_function: "Optional[Callable[[QemuGuestInstance, argparse.Namespace], None]]" = None,
     argparse_setup_callback: "Optional[Callable[[argparse.ArgumentParser], None]]" = None,
     argparse_adjust_args_callback: "Optional[Callable[[argparse.Namespace], None]]" = None,
 ):
@@ -1686,7 +1686,7 @@ def _main(
 
     boot_starttime = datetime.datetime.now()
     assert args.qemu_cmd is not None
-    qemu = boot_cheribsd(
+    qemu = boot_guest(
         qemu_options,
         qemu_command=args.qemu_cmd,
         kernel_image=kernel,
@@ -1752,8 +1752,8 @@ def _main(
 
 
 def main(
-    test_function: "Optional[Callable[[QemuCheriBSDInstance, argparse.Namespace], bool]]" = None,
-    test_setup_function: "Optional[Callable[[QemuCheriBSDInstance, argparse.Namespace], None]]" = None,
+    test_function: "Optional[Callable[[QemuGuestInstance, argparse.Namespace], bool]]" = None,
+    test_setup_function: "Optional[Callable[[QemuGuestInstance, argparse.Namespace], None]]" = None,
     argparse_setup_callback: "Optional[Callable[[argparse.ArgumentParser], None]]" = None,
     argparse_adjust_args_callback: "Optional[Callable[[argparse.Namespace], None]]" = None,
 ):

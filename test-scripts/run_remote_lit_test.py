@@ -123,7 +123,7 @@ def notify_main_process(
         mp_debug(cmdline_args, "Barrier released for stage ", stage)
 
 
-def flush_thread(f, qemu: boot_cheribsd.QemuCheriBSDInstance, should_exit_event: threading.Event):
+def flush_thread(f, qemu: boot_cheribsd.QemuGuestInstance, should_exit_event: threading.Event):
     while not should_exit_event.wait(timeout=0.1):
         if f:
             f.flush()
@@ -151,7 +151,7 @@ def flush_thread(f, qemu: boot_cheribsd.QemuCheriBSDInstance, should_exit_event:
 
 def run_remote_lit_tests(
     testsuite: str,
-    qemu: boot_cheribsd.CheriBSDInstance,
+    qemu: boot_cheribsd.GuestInstance,
     args: argparse.Namespace,
     tempdir: str,
     *,
@@ -194,7 +194,7 @@ def run_remote_lit_tests(
 
 def run_remote_lit_tests_impl(
     testsuite: str,
-    qemu: boot_cheribsd.CheriBSDInstance,
+    qemu: boot_cheribsd.GuestInstance,
     args: argparse.Namespace,
     tempdir: str,
     test_dirs: "list[str]",

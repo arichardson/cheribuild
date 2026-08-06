@@ -76,14 +76,14 @@ def add_args(parser: argparse.ArgumentParser):
     )
 
 
-def setup_juliet_test_environment(qemu: boot_cheribsd.CheriBSDInstance, args: argparse.Namespace):
+def setup_juliet_test_environment(qemu: boot_cheribsd.GuestInstance, args: argparse.Namespace):
     boot_cheribsd.set_ld_library_path_with_sysroot(qemu)
     if args.test_setup_commands:
         for command in args.test_setup_commands:
             qemu.checked_run(command)
 
 
-def run_juliet_tests(qemu: boot_cheribsd.CheriBSDInstance, args: argparse.Namespace) -> bool:
+def run_juliet_tests(qemu: boot_cheribsd.GuestInstance, args: argparse.Namespace) -> bool:
     # args.ld_preload_path should be a path on the host
     if args.ld_preload_path:
         # hack until libcaprevoke is always present in cheribsd and can be added to the disk image via METALOG:

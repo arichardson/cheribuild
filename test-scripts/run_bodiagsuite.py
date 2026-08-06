@@ -206,7 +206,7 @@ def create_junit_xml(builddir, name, tools):
     return True
 
 
-def run_bodiagsuite(qemu: boot_cheribsd.CheriBSDInstance, args: argparse.Namespace) -> bool:
+def run_bodiagsuite(qemu: boot_cheribsd.GuestInstance, args: argparse.Namespace) -> bool:
     boot_cheribsd.info("Running BODiagSuite")
     assert not args.use_valgrind, "Not support for CheriBSD"
 

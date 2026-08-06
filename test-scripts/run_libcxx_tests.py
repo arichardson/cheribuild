@@ -121,7 +121,7 @@ def libcxx_main(
             sys.exit()
         run_remote_lit_test.adjust_common_cmdline_args(args)
 
-    def run_libcxx_tests(qemu: boot_cheribsd.CheriBSDInstance, args: argparse.Namespace) -> bool:
+    def run_libcxx_tests(qemu: boot_cheribsd.GuestInstance, args: argparse.Namespace) -> bool:
         with tempfile.TemporaryDirectory(prefix="cheribuild-libcxx-tests-") as tempdir:
             # TODO: do we need lit_extra_args=["-Denable_filesystem=False"]?
             # Some of the tests might fail on a SMBFS directory.

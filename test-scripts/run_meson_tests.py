@@ -43,7 +43,7 @@ from run_tests_common import (
 )
 
 
-def do_setup(qemu: boot_cheribsd.CheriBSDInstance, args: argparse.Namespace):
+def do_setup(qemu: boot_cheribsd.GuestInstance, args: argparse.Namespace):
     if args.test_setup_commands:
         # If the user supplied test setup steps, run them now.
         for command in args.test_setup_commands:
@@ -54,7 +54,7 @@ def do_setup(qemu: boot_cheribsd.CheriBSDInstance, args: argparse.Namespace):
     qemu.checked_run(f"cd {args.build_dir}")
 
 
-def run_meson_tests(qemu: boot_cheribsd.CheriBSDInstance, args: argparse.Namespace) -> bool:
+def run_meson_tests(qemu: boot_cheribsd.GuestInstance, args: argparse.Namespace) -> bool:
     xml = junitparser.JUnitXml()
     all_tests_starttime = datetime.datetime.now(datetime.timezone.utc)
     for ti in args.test_info:

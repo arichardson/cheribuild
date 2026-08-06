@@ -50,8 +50,8 @@ from serial.tools.list_ports import comports  # noqa: E402
 from serial.tools.list_ports_common import ListPortInfo  # noqa: E402
 
 from pycheribuild.boot_cheribsd import (  # noqa: E402
-    CheriBSDInstance,
-    CheriBSDSpawnMixin,
+    GuestInstance,
+    GuestSpawnMixin,
     PretendSpawn,
     boot_and_login,
     failure,
@@ -198,7 +198,7 @@ def abspath_arg(s) -> Path:
     return Path(os.path.abspath(os.path.expandvars(os.path.expanduser(s))))
 
 
-class FakeSerialSpawn(CheriBSDSpawnMixin, PretendSpawn):
+class FakeSerialSpawn(GuestSpawnMixin, PretendSpawn):
     pass
 
 
@@ -208,7 +208,7 @@ class SerialConnection:
             self.cheribsd = FakeSerialSpawn(executable, args)
         else:
             print_command([executable, *args], config=get_global_config())
-            self.cheribsd = CheriBSDInstance(
+            self.cheribsd = GuestInstance(
                 CompilationTargets.CHERIBSD_RISCV_XCHERI_HYBRID,
                 executable,
                 args,
@@ -216,7 +216,7 @@ class SerialConnection:
                 encoding="utf-8",
                 timeout=60,
             )
-        assert isinstance(self.cheribsd, CheriBSDSpawnMixin)
+        assert isinstance(self.cheribsd, GuestSpawnMixin)
 
     def interact(self):
         # interact() prints all input+output -> disable logfile

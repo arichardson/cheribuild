@@ -46,7 +46,7 @@ def get_host_cmake_path(cmake_cache: Path) -> bytes:
     return b"/usr/bin/cmake"
 
 
-def test_setup(qemu: boot_cheribsd.CheriBSDInstance, args: argparse.Namespace):
+def test_setup(qemu: boot_cheribsd.GuestInstance, args: argparse.Namespace):
     if not args.extra_library_paths:
         # If the used passed extra library paths assume that those are correct.
         # Otherwise, set up the default LD_LIBRARY_PATH to include the sysroot
@@ -79,7 +79,7 @@ def test_setup(qemu: boot_cheribsd.CheriBSDInstance, args: argparse.Namespace):
     qemu.checked_run("export PATH=$PATH:/cmake/bin")
 
 
-def run_ctest_tests(qemu: boot_cheribsd.CheriBSDInstance, args: argparse.Namespace) -> bool:
+def run_ctest_tests(qemu: boot_cheribsd.GuestInstance, args: argparse.Namespace) -> bool:
     boot_cheribsd.info("Running tests with ctest")
     ctest_args = ". --output-on-failure --test-timeout " + str(args.test_timeout)
     # Also write a junit XML result

@@ -34,7 +34,7 @@ import argparse
 from run_tests_common import boot_cheribsd, run_tests_main
 
 
-def run_simple_test(qemu: boot_cheribsd.QemuCheriBSDInstance, args: argparse.Namespace) -> bool:
+def run_simple_test(qemu: boot_cheribsd.QemuGuestInstance, args: argparse.Namespace) -> bool:
     if args.sysroot_dir is not None:
         boot_cheribsd.set_ld_library_path_with_sysroot(qemu)
     boot_cheribsd.info("Running tests")

@@ -35,7 +35,7 @@ from pathlib import Path
 from run_tests_common import boot_cheribsd, junitparser, run_tests_main
 
 
-def setup_qtwebkit_test_environment(qemu: boot_cheribsd.CheriBSDInstance, _: argparse.Namespace):
+def setup_qtwebkit_test_environment(qemu: boot_cheribsd.GuestInstance, _: argparse.Namespace):
     boot_cheribsd.set_ld_library_path_with_sysroot(qemu)
     qemu.run("export ICU_DATA=/sysroot/usr/local/share/icu/60.0.1")
     qemu.run("export LANG=en_US.UTF-8")
@@ -67,7 +67,7 @@ def setup_qtwebkit_test_environment(qemu: boot_cheribsd.CheriBSDInstance, _: arg
     qemu.checked_run("cp /build/bin/DumpRenderTree.stripped /tmp/DumpRenderTree")
 
 
-def run_qtwebkit_tests(qemu: boot_cheribsd.CheriBSDInstance, args: argparse.Namespace) -> bool:
+def run_qtwebkit_tests(qemu: boot_cheribsd.GuestInstance, args: argparse.Namespace) -> bool:
     boot_cheribsd.info("Running QtWebkit tests")
     try:
         # Check that jsc + dumprendertree work
