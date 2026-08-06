@@ -50,11 +50,9 @@ from serial.tools.list_ports import comports  # noqa: E402
 from serial.tools.list_ports_common import ListPortInfo  # noqa: E402
 
 from pycheribuild.boot_automation import (  # noqa: E402
-    GuestInstance,
-    GuestSpawnMixin,
     PretendSpawn,
-    boot_and_login,
     failure,
+    freebsd,
     info,
     pexpect,
     success,
@@ -198,7 +196,7 @@ def abspath_arg(s) -> Path:
     return Path(os.path.abspath(os.path.expandvars(os.path.expanduser(s))))
 
 
-class FakeSerialSpawn(GuestSpawnMixin, PretendSpawn):
+class FakeSerialSpawn(freebsd.FreeBSDSpawnMixin, PretendSpawn):
     pass
 
 
@@ -208,7 +206,7 @@ class SerialConnection:
             self.cheribsd = FakeSerialSpawn(executable, args)
         else:
             print_command([executable, *args], config=get_global_config())
-            self.cheribsd = GuestInstance(
+            self.cheribsd = freebsd.FreeBSDInstance(
                 CompilationTargets.CHERIBSD_RISCV_XCHERI_HYBRID,
                 executable,
                 args,
@@ -216,7 +214,7 @@ class SerialConnection:
                 encoding="utf-8",
                 timeout=60,
             )
-        assert isinstance(self.cheribsd, GuestSpawnMixin)
+        assert isinstance(self.cheribsd, freebsd.FreeBSDSpawnMixin)
 
     def interact(self):
         # interact() prints all input+output -> disable logfile
@@ -432,7 +430,7 @@ def load_and_start_kernel(
     else:
         failure("Did not get expected boot output", exit=True)
     # TODO: network_iface="xae0", but DHCP doesn't work
-    boot_and_login(serial_conn.cheribsd, starttime=gdb_finish_time, network_iface=None)
+    freebsd.boot_and_login_freebsd(serial_conn.cheribsd, starttime=gdb_finish_time, network_iface=None)
     return FpgaConnection(gdb, openocd, serial_conn)
 
 
