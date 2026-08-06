@@ -87,6 +87,18 @@ class LaunchFreeBSDInterface:
         raise NotImplementedError()
 
 
+class LaunchLinuxInterface:
+    current_kernel: Optional[Path]
+    initramfs_path: Optional[Path]
+
+    @classmethod
+    def get_chosen_qemu(cls, config: CheriConfig):
+        raise NotImplementedError()
+
+    def get_riscv_bios_args(self) -> "list[str]":
+        raise NotImplementedError()
+
+
 @functools.lru_cache(maxsize=20)
 def _linker_supports_riscv_relaxations(linker: Path, config: CheriConfig, xtarget: "CrossCompileTarget") -> bool:
     if xtarget.is_hybrid_or_purecap_cheri():
@@ -862,11 +874,23 @@ class RTEMSTargetInfo(_ClangBasedTargetInfo):
             assert False, "No support for building RTEMS for non RISC-V targets yet"
 
 
+def linux_test_architecture_key(xtarget: "CrossCompileTarget") -> str:
+    # generic_target_suffix alone collides across the upstream/CHERI/Morello Linux families
+    # (e.g. "linux-riscv64" is produced by more than one), so prefix with the per-family
+    # kernel_target, which is already unique. Used as the --architecture value/lookup key by
+    # both this method and boot_automation's SUPPORTED_ARCHITECTURES so they can't drift.
+    assert xtarget.target_info_cls.is_linux()
+    kernel_target = typing.cast("type[LinuxTargetInfoBase]", xtarget.target_info_cls).kernel_target
+    return f"{kernel_target}/{xtarget.generic_target_suffix}"
+
+
 class LinuxTargetInfoBase(_ClangBasedTargetInfo, ABC):
     shortname: str = "Linux"
     kernel_target: str
     musl_target: str
     compiler_rt_target: str
+    # The run-* target that boots this Linux family under QEMU (see pycheribuild/projects/cross/linux.py).
+    run_target: str
 
     @classmethod
     def is_linux(cls) -> bool:
@@ -900,12 +924,82 @@ class LinuxTargetInfoBase(_ClangBasedTargetInfo, ABC):
     def base_sysroot_targets(cls, target: "CrossCompileTarget", config: "CheriConfig") -> "list[str]":
         return [cls.kernel_target, cls.musl_target, cls.compiler_rt_target]
 
+    def _get_run_project(self, xtarget: "CrossCompileTarget", caller: AbstractProject) -> LaunchLinuxInterface:
+        result = SimpleProject.get_instance_for_target_name(self.run_target, xtarget, caller.config, caller)
+        return typing.cast(LaunchLinuxInterface, result)
+
+    def run_test_script(
+        self,
+        script_name,
+        *script_args,
+        kernel_path=None,
+        disk_image_path=None,
+        mount_builddir=True,
+        mount_sourcedir=False,
+        mount_sysroot=False,
+        use_full_disk_image=False,
+        mount_installdir=False,
+        use_benchmark_kernel_by_default=False,
+        rootfs_alternate_kernel_dir=None,
+    ) -> None:
+        # LaunchLinuxBase always boots a kernel+initramfs directly; none of the FreeBSD disk-image/
+        # benchmark-kernel/MFS-root concepts apply here, unlike FreeBSDTargetInfo.run_test_script().
+        assert not disk_image_path and not use_full_disk_image, "Linux guests do not support disk images yet"
+        assert not rootfs_alternate_kernel_dir, "Not supported for Linux guests"
+        if typing.TYPE_CHECKING:
+            assert isinstance(self.project, SimpleProject)
+        xtarget = self.target
+        rootfs_xtarget = xtarget.get_rootfs_target()
+        run_instance = self._get_run_project(rootfs_xtarget, self.project)
+        script = self.project.get_test_script_path(script_name)
+        if not script.exists():
+            self.project.fatal("Could not find test script", script)
+        cmd: "list[str | Path]" = [script, "--architecture", linux_test_architecture_key(rootfs_xtarget)]
+        if kernel_path is None:
+            kernel_path = run_instance.current_kernel
+        if kernel_path:
+            cmd.extend(["--kernel", kernel_path])
+        if run_instance.initramfs_path:
+            cmd.extend(["--initramfs", run_instance.initramfs_path])
+        chosen_qemu = run_instance.get_chosen_qemu(self.config)
+        # noinspection PyProtectedMember
+        if not chosen_qemu._setup:
+            chosen_qemu = copy.deepcopy(chosen_qemu)  # avoid modifying the object referenced by run_instance
+            chosen_qemu.setup(run_instance)
+        cmd.extend(["--qemu-cmd", chosen_qemu.binary])
+        if xtarget.is_riscv(include_purecap=True):
+            bios_args = run_instance.get_riscv_bios_args()
+            assert len(bios_args) == 2 and bios_args[0] == "-bios"
+            cmd.extend(["--bios", bios_args[1]])
+        build_dir: "Optional[Path]" = getattr(self.project, "build_dir", None)
+        if mount_builddir and build_dir is not None:
+            cmd.extend(["--build-dir", build_dir])
+        if mount_sourcedir and self.project.source_dir:
+            cmd.extend(["--source-dir", self.project.source_dir])
+        if mount_sysroot:
+            cmd.extend(["--sysroot-dir", self.sysroot_dir])
+        if mount_installdir:
+            # noinspection PyUnresolvedReferences
+            cmd.extend(["--install-destdir", self.project.destdir])  # pytype: disable=attribute-error
+            # noinspection PyUnresolvedReferences
+            cmd.extend(["--install-prefix", self.project.install_prefix])  # pytype: disable=attribute-error
+        if self.config.tests_interact:
+            cmd.append("--interact")
+        if self.config.tests_env_only:
+            cmd.append("--test-environment-only")
+
+        cmd.extend(map(str, script_args))
+        if self.config.test_extra_args:
+            cmd.extend(self.config.test_extra_args)
+        self.project.run_cmd(cmd, give_tty_control=True)
+
 
 class UpstreamLinuxTargetInfo(LinuxTargetInfoBase):
     uses_upstream_llvm: bool = True
     kernel_target = "upstream-linux-kernel"
     musl_target = "upstream-muslc"
     compiler_rt_target = "upstream-compiler-rt-builtins"
+    run_target = "run-minimal-upstream"
 
     @property
     def sysroot_dir(self) -> Path:
@@ -917,6 +1011,7 @@ class CheriLinuxTargetInfo(LinuxTargetInfoBase):
     kernel_target = "linux-kernel"
     musl_target = "muslc"
     compiler_rt_target = "cheri-std093-compiler-rt-builtins"
+    run_target = "run-minimal-cheri-linux"
 
     @property
     def sysroot_dir(self) -> Path:
@@ -938,6 +1033,7 @@ class MorelloLinuxTargetInfo(LinuxTargetInfoBase):
     kernel_target = "morello-linux-kernel"
     musl_target = "morello-muslc"
     compiler_rt_target = "morello-compiler-rt-builtins"
+    run_target = "run-minimal-morello"
 
     @property
     def sysroot_dir(self) -> Path:
