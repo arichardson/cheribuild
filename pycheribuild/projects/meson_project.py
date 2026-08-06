@@ -226,7 +226,7 @@ class MesonProject(_CMakeAndMesonSharedLogic):
         if self.compiling_for_host():
             self.run_cmd(self.configure_command, "test", "--print-errorlogs", cwd=self.build_dir)
         elif self.target_info.is_cheribsd():
-            self.target_info.run_cheribsd_test_script(
+            self.target_info.run_test_script(
                 "run_meson_tests.py",
                 *self.meson_test_script_extra_args,
                 mount_builddir=True,

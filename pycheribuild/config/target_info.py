@@ -562,7 +562,7 @@ class TargetInfo(ABC):
     def is_cheribsd(cls) -> bool:
         return False
 
-    def run_cheribsd_test_script(
+    def run_test_script(
         self,
         script_name,
         *script_args,
@@ -576,7 +576,7 @@ class TargetInfo(ABC):
         use_benchmark_kernel_by_default=False,
         rootfs_alternate_kernel_dir=None,
     ) -> None:
-        raise ValueError("run_cheribsd_test_script only supports CheriBSD targets")
+        raise ValueError("run_test_script only supports CheriBSD targets")
 
     @classmethod
     def is_macos(cls) -> bool:

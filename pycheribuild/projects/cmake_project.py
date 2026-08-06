@@ -350,7 +350,7 @@ class CMakeProject(_CMakeAndMesonSharedLogic):
                 for var, value in self.ctest_environment.items():
                     args.append("--test-setup-command=export " + shlex.quote(var + "=" + value))
                 args.extend(self.ctest_script_extra_args)
-                self.target_info.run_cheribsd_test_script(
+                self.target_info.run_test_script(
                     "run_ctest_tests.py",
                     *args,
                     mount_builddir=True,

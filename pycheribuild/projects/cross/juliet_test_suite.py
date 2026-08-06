@@ -108,7 +108,7 @@ class BuildJulietCWESubdir(CrossCompileCMakeProject):
         # For stdin redirection
         args.append("--test-setup-command=touch /tmp/in.txt")
 
-        self.target_info.run_cheribsd_test_script(
+        self.target_info.run_test_script(
             "run_juliet_tests.py", *args, mount_sourcedir=True, mount_sysroot=True, mount_builddir=True
         )
 

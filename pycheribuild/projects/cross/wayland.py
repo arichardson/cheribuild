@@ -285,7 +285,7 @@ set TOOL_OPTIONS -static
                     cwd=str(self.build_dir),
                 )
             else:
-                self.target_info.run_cheribsd_test_script(
+                self.target_info.run_test_script(
                     "run_libffi_tests.py",
                     "--test-timeout",
                     str(120 * 60),

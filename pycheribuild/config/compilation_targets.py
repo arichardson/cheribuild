@@ -536,7 +536,7 @@ class FreeBSDTargetInfo(_ClangBasedTargetInfo):
         result = SimpleProject.get_instance_for_target_name("run-freebsd", xtarget, caller.config, caller)
         return typing.cast(LaunchFreeBSDInterface, result)
 
-    def run_cheribsd_test_script(
+    def run_test_script(
         self,
         script_name,
         *script_args,

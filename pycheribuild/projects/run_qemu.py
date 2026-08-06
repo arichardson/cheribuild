@@ -900,7 +900,7 @@ class _RunMultiArchFreeBSDImage(AbstractLaunchFreeBSD):
             extra_args.append(f"--test-output-dir={tests_dir}")
         if self.kernel_abi is not None and self.crosscompile_target.is_hybrid_or_purecap_cheri():
             extra_args.append(f"--expected-kernel-abi={self.kernel_abi.value}")
-        self.target_info.run_cheribsd_test_script(
+        self.target_info.run_test_script(
             "run_cheribsd_tests.py",
             *extra_args,
             disk_image_path=self.disk_image,

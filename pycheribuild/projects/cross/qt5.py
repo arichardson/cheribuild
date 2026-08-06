@@ -595,7 +595,7 @@ class BuildQtBaseDev(CrossCompileCMakeProject):
             self.run_make("test", cwd=self.build_dir)
         else:
             # TODO: run `ctest --show-only=json-v1` to get list of tests
-            self.target_info.run_cheribsd_test_script(
+            self.target_info.run_test_script(
                 "run_qtbase_tests.py",
                 use_benchmark_kernel_by_default=False,
                 mount_sysroot=True,
@@ -742,7 +742,7 @@ for my $module (keys %modules) {
             command = ["run_qtbase_tests.py"]
             if "--test-subset" not in " ".join(self.config.test_extra_args):
                 command.append("--test-subset=corelib")
-            self.target_info.run_cheribsd_test_script(
+            self.target_info.run_test_script(
                 *command,
                 use_benchmark_kernel_by_default=True,
                 mount_sysroot=False,
@@ -786,7 +786,7 @@ class BuildQtModuleWithQMake(CrossCompileProject):
         else:
             self.run_make("sub-tests-all")
             # We run tests using the full disk image since we want e.g. locales to be available.
-            self.target_info.run_cheribsd_test_script(
+            self.target_info.run_test_script(
                 "run_qtbase_tests.py",
                 use_benchmark_kernel_by_default=True,
                 mount_sysroot=True,
@@ -1184,7 +1184,7 @@ class BuildQtWebkit(CrossCompileCMakeProject):
         if self.compiling_for_host():
             self.fatal("Running host tests not implemented")
         else:
-            self.target_info.run_cheribsd_test_script(
+            self.target_info.run_test_script(
                 "run_qtwebkit_tests.py",
                 use_benchmark_kernel_by_default=True,
                 mount_builddir=True,

@@ -114,7 +114,7 @@ class BuildPython(CrossCompileAutotoolsProject):
             )
         else:
             # Python executes tons of system calls, hopefully using the benchmark kernel helps
-            self.target_info.run_cheribsd_test_script(
+            self.target_info.run_test_script(
                 "run_python_tests.py",
                 "--buildexe-suffix=" + suffix,
                 mount_installdir=True,

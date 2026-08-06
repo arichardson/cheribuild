@@ -179,6 +179,6 @@ export LD_LIBRARY_PATH={ld_library_path}:${{LD_LIBRARY_PATH}}
     def run_tests(self):
         # only test when not compiling for host
         if not self.compiling_for_host():
-            self.target_info.run_cheribsd_test_script(
+            self.target_info.run_test_script(
                 "run_ros2_tests.py", mount_sourcedir=True, mount_installdir=True, mount_sysroot=True
             )

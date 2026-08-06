@@ -160,7 +160,7 @@ class BuildMibench(BenchmarkMixin, CrossCompileProject):
             f"cd '/build/{self.bundle_dir.name}' && "
             f"./run_jenkins-bluehive.sh -d0 -r1 -s {self.benchmark_size} {self.benchmark_version}"
         )
-        self.target_info.run_cheribsd_test_script(
+        self.target_info.run_test_script(
             "run_simple_tests.py", "--test-command", test_command, "--test-timeout", str(120 * 60), mount_builddir=True
         )
 
@@ -310,7 +310,7 @@ class BuildOlden(BenchmarkMixin, CrossCompileProject):
             return
         # testing, not benchmarking -> run only once: (-s small / -s large?)
         test_command = f"cd /build/bin && ./run_jenkins-bluehive.sh -d0 -r1 {self.test_arch_suffix}"
-        self.target_info.run_cheribsd_test_script(
+        self.target_info.run_test_script(
             "run_simple_tests.py", "--test-command", test_command, "--test-timeout", str(120 * 60), mount_builddir=True
         )
 
@@ -591,7 +591,7 @@ class BuildLMBench(BenchmarkMixin, CrossCompileProject):
             return
         # testing, not benchmarking -> run only once
         test_command = f"cd '/build/{self.bundle_dir.name}' && ./run_jenkins-bluehive.sh -d0 -r1 -s"
-        self.target_info.run_cheribsd_test_script(
+        self.target_info.run_test_script(
             "run_simple_tests.py", "--test-command", test_command, "--test-timeout", str(120 * 60), mount_builddir=True
         )
 

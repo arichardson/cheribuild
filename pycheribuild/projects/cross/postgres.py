@@ -131,7 +131,7 @@ class BuildPostgres(CrossCompileAutotoolsProject):
             # self.run_make("check", cwd=self.build_dir / "src/interfaces/ecpg/test", stdout_filter=None)
         else:
             locale_dir = self.rootfs_dir / "usr/share/locale"
-            self.target_info.run_cheribsd_test_script(
+            self.target_info.run_test_script(
                 "run_postgres_tests.py",
                 "--shared-mount-directory",
                 str(self.install_dir) + ":" + str(self.install_prefix),

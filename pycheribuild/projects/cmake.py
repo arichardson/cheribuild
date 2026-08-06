@@ -144,7 +144,7 @@ class BuildCrossCompiledCMake(CMakeProject):
         # TODO: generate JUnit output once https://gitlab.kitware.com/cmake/cmake/-/merge_requests/6020 is merged
         # Can't run the testsuite since many tests depend on having a C compiler installed.
         test_command = "cd /build && ./bin/ctest -N"
-        self.target_info.run_cheribsd_test_script(
+        self.target_info.run_test_script(
             "run_simple_tests.py",
             "--test-command",
             test_command,

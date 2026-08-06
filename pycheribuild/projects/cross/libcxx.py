@@ -120,7 +120,7 @@ class BuildLibCXXRT(_CxxRuntimeCMakeProject):
             if self.compiling_for_host():
                 self.run_cmd("ctest", ".", "-VV", cwd=self.build_dir)
             else:
-                self.target_info.run_cheribsd_test_script(
+                self.target_info.run_test_script(
                     "run_libcxxrt_tests.py",
                     "--libunwind-build-dir",
                     BuildLibunwind.get_build_dir(self),
@@ -345,7 +345,7 @@ class BuildLibCXX(_CxxRuntimeCMakeProject):
             )
         else:
             # long running test -> speed up by using a kernel without invariants
-            self.target_info.run_cheribsd_test_script(
+            self.target_info.run_test_script(
                 "run_libcxx_tests.py",
                 "--parallel-jobs",
                 self.test_jobs,
@@ -679,7 +679,7 @@ class _BuildLlvmRuntimes(CrossCompileCMakeProject):
         elif self.target_info.is_freebsd() and not self.compiling_for_host():
             test_jobs = self.qemu_test_jobs
             if "libunwind" in self.get_enabled_runtimes():
-                self.target_info.run_cheribsd_test_script(
+                self.target_info.run_test_script(
                     "run_libunwind_tests.py",
                     "--lit-debug-output",
                     "--ssh-executor-script",
@@ -687,7 +687,7 @@ class _BuildLlvmRuntimes(CrossCompileCMakeProject):
                     mount_sysroot=True,
                 )
             if "libcxx" in self.get_enabled_runtimes():
-                self.target_info.run_cheribsd_test_script(
+                self.target_info.run_test_script(
                     "run_libcxx_tests.py",
                     "--lit-debug-output",
                     "--ssh-executor-script",
