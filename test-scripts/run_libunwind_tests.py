@@ -34,15 +34,15 @@ import sys
 import tempfile
 
 import run_remote_lit_test
-from run_tests_common import boot_cheribsd, run_tests_main
+from run_tests_common import boot_automation, run_tests_main
 
 
-def setup_libunwind_env(qemu: boot_cheribsd.GuestInstance, _: argparse.Namespace):
+def setup_libunwind_env(qemu: boot_automation.GuestInstance, _: argparse.Namespace):
     # Ensure that the local libunwind.so is used instead of the system one
     qemu.checked_run("echo ln -sfv /build/lib/libunwind.so.1 /build/lib/libgcc_s.so.1")
 
 
-def run_libunwind_tests(qemu: boot_cheribsd.GuestInstance, args: argparse.Namespace):
+def run_libunwind_tests(qemu: boot_automation.GuestInstance, args: argparse.Namespace):
     with tempfile.TemporaryDirectory(prefix="cheribuild-libunwind-tests-") as tempdir:
         # run the tests both for shared and static libunwind by setting -Denable_shared=
         # First static binaries

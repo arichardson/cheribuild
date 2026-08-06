@@ -41,13 +41,13 @@ import time
 from pathlib import Path
 
 from kyua_db_to_junit_xml import convert_kyua_db_to_junit_xml, fixup_kyua_generated_junit_xml
-from run_tests_common import CrossCompileTarget, boot_cheribsd, pexpect, run_tests_main
+from run_tests_common import CrossCompileTarget, boot_automation, pexpect, run_tests_main
 
 from pycheribuild.utils import get_global_config
 
 
 def run_cheribsdtest(
-    qemu: boot_cheribsd.QemuGuestInstance,
+    qemu: boot_automation.QemuGuestInstance,
     binary_name,
     old_binary_names,
     optional,
@@ -81,31 +81,31 @@ def run_cheribsdtest(
             qemu.expect_prompt()
         # 127 - "A specified command_file could not be found by a non-interactive shell."
         if exit_code == 127 and optional:
-            boot_cheribsd.info("Optional cheribsdtest binary " + binary_name + " not present")
+            boot_automation.info("Optional cheribsdtest binary " + binary_name + " not present")
             return True
         if qemu.shared_mount_failed:
-            boot_cheribsd.info("Shared mount has failed, performing normal scp")
+            boot_automation.info("Shared mount has failed, performing normal scp")
             host_path = Path(args.test_output_dir, binary_name + ".xml")
             qemu.scp_from_guest(f"/tmp/{binary_name}.xml", host_path)
         else:
             qemu.checked_run(f"mv -f /tmp/{binary_name}.xml /test-results/{binary_name}.xml")
             qemu.run(f"fsync /test-results/{binary_name}.xml")
         return exit_code == 0
-    except boot_cheribsd.CommandTimeoutError as e:
-        boot_cheribsd.failure("Timeout running cheribsdtest: " + str(e), exit=False)
+    except boot_automation.CommandTimeoutError as e:
+        boot_automation.failure("Timeout running cheribsdtest: " + str(e), exit=False)
         qemu.sendintr()
         qemu.sendintr()
         # Try to cancel the running command and get back to having a sensible prompt
         qemu.checked_run("pwd")
         time.sleep(10)
         return False
-    except boot_cheribsd.CommandFailedError as e:
-        boot_cheribsd.failure("Failed to run: " + str(e), exit=False)
+    except boot_automation.CommandFailedError as e:
+        boot_automation.failure("Failed to run: " + str(e), exit=False)
         return False
 
 
-def run_cheribsd_test(qemu: boot_cheribsd.QemuGuestInstance, args: argparse.Namespace):
-    boot_cheribsd.success("Booted successfully")
+def run_cheribsd_test(qemu: boot_automation.QemuGuestInstance, args: argparse.Namespace):
+    boot_automation.success("Booted successfully")
     qemu.checked_run("kenv")
     # unchecked since mount_smbfs returns non-zero for --help:
     qemu.run("mount_smbfs --help", cheri_trap_fatal=True)
@@ -118,8 +118,8 @@ def run_cheribsd_test(qemu: boot_cheribsd.QemuGuestInstance, args: argparse.Name
     # check whether su works (this was broken until recently on the minimal images)
     try:
         qemu.checked_run("su -m tests -c id")
-    except boot_cheribsd.CommandFailedError as e:
-        boot_cheribsd.failure("Failed to run su: ", e, exit=False)
+    except boot_automation.CommandFailedError as e:
+        boot_automation.failure("Failed to run su: ", e, exit=False)
         tests_successful = False
 
     # Check that we can connect to QEMU using SSH. This catches regressions that break SSHD.
@@ -152,7 +152,7 @@ def run_cheribsd_test(qemu: boot_cheribsd.QemuGuestInstance, args: argparse.Name
         for test in cheribsdtest_tests:
             if not run_cheribsdtest(qemu, test[0], [], test[1], args):
                 tests_successful = False
-                boot_cheribsd.failure("At least one test failure in ", test[0], exit=False)
+                boot_automation.failure("At least one test failure in ", test[0], exit=False)
         qemu.run("sysctl machdep.log_user_cheri_exceptions=1 || sysctl machdep.log_cheri_exceptions=1")
 
     # Run kyua tests
@@ -185,16 +185,16 @@ def run_cheribsd_test(qemu: boot_cheribsd.QemuGuestInstance, args: argparse.Name
             results_xml = results_db.with_suffix(".xml")
             assert shlex.quote(str(results_db)) == str(results_db), "Should not contain any special chars"
             if qemu.shared_mount_failed:
-                boot_cheribsd.info("Shared mount has failed, performing normal scp")
+                boot_automation.info("Shared mount has failed, performing normal scp")
                 qemu.scp_from_guest("/tmp/results.db", Path(args.test_output_dir, results_db.name))
             else:
                 try:
                     qemu.checked_run(f"cp -v /tmp/results.db {results_db}")
-                except boot_cheribsd.CommandFailedError as e:
-                    boot_cheribsd.failure(f"Failed to copy results out of QEMU {e}\nTrying again...", exit=False)
+                except boot_automation.CommandFailedError as e:
+                    boot_automation.failure(f"Failed to copy results out of QEMU {e}\nTrying again...", exit=False)
                     qemu.checked_run(f"cp -v /tmp/results.db {results_db}")
                     qemu.checked_run(f"fsync {results_db}")
-            boot_cheribsd.success("Running tests for ", tests_file, " took: ", datetime.datetime.now() - test_start)
+            boot_automation.success("Running tests for ", tests_file, " took: ", datetime.datetime.now() - test_start)
 
             # run: kyua report-junit --results-file=test-results.db | vis -os > ${CPU}-${TEST_NAME}-test-results.xml
             # Not sure how much we gain by running it on the host instead.
@@ -202,7 +202,7 @@ def run_cheribsd_test(qemu: boot_cheribsd.QemuGuestInstance, args: argparse.Name
             # pipe)
             # TODO: should escape the XML file but that's probably faster on the host
             if host_has_kyua:
-                boot_cheribsd.info("KYUA installed on the host, no need to do slow conversion in QEMU")
+                boot_automation.info("KYUA installed on the host, no need to do slow conversion in QEMU")
             else:
                 xml_conversion_start = datetime.datetime.now()
                 qemu.checked_run(
@@ -210,28 +210,28 @@ def run_cheribsd_test(qemu: boot_cheribsd.QemuGuestInstance, args: argparse.Name
                     timeout=200 * 60,
                 )
                 if qemu.shared_mount_failed:
-                    boot_cheribsd.info("Shared mount has failed, performing normal scp")
+                    boot_automation.info("Shared mount has failed, performing normal scp")
                     qemu.scp_from_guest("/tmp/results.xml", Path(args.test_output_dir, results_xml.name))
                 else:
                     qemu.checked_run(f"cp -v /tmp/results.xml {results_xml}")
                     qemu.checked_run("fsync " + str(results_xml))
-                boot_cheribsd.success(
+                boot_automation.success(
                     "Creating JUnit XML ",
                     results_xml,
                     " took: ",
                     datetime.datetime.now() - xml_conversion_start,
                 )
-    except boot_cheribsd.CommandTimeoutError as e:
-        boot_cheribsd.failure("Timeout running tests: " + str(e), exit=False)
+    except boot_automation.CommandTimeoutError as e:
+        boot_automation.failure("Timeout running tests: " + str(e), exit=False)
         qemu.sendintr()
         qemu.sendintr()
         # Try to cancel the running command and get back to having a sensible prompt
         qemu.checked_run("pwd")
         time.sleep(10)
         tests_successful = False
-    except boot_cheribsd.CommandFailedError as e:
-        boot_cheribsd.failure("Failed to run: " + str(e), exit=False)
-        boot_cheribsd.info("Trying to shut down cleanly")
+    except boot_automation.CommandFailedError as e:
+        boot_automation.failure("Failed to run: " + str(e), exit=False)
+        boot_automation.info("Trying to shut down cleanly")
         tests_successful = False
 
     # Update the JUnit stats in the XML files (both kyua and cheribsdtest):
@@ -241,23 +241,23 @@ def run_cheribsd_test(qemu: boot_cheribsd.QemuGuestInstance, args: argparse.Name
         junit_dir = Path(args.test_output_dir)
         if host_has_kyua:
             try:
-                boot_cheribsd.info("Converting kyua databases to JUNitXML in output directory ", junit_dir)
+                boot_automation.info("Converting kyua databases to JUNitXML in output directory ", junit_dir)
                 for host_kyua_db_path in junit_dir.glob("*.db"):
                     convert_kyua_db_to_junit_xml(host_kyua_db_path, host_kyua_db_path.with_suffix(".xml"))
             except Exception as e:
-                boot_cheribsd.failure("Could not convert kyua database in ", junit_dir, ": ", e, exit=False)
+                boot_automation.failure("Could not convert kyua database in ", junit_dir, ": ", e, exit=False)
                 tests_successful = False
-        boot_cheribsd.info("Updating statistics in JUnit output directory ", junit_dir)
+        boot_automation.info("Updating statistics in JUnit output directory ", junit_dir)
         for host_xml_path in junit_dir.glob("*.xml"):
             try:
                 # Despite the name also works for cheribsdtest
                 fixup_kyua_generated_junit_xml(host_xml_path, qemu.xtarget.generic_arch_suffix)
             except Exception as e:
-                boot_cheribsd.failure("Could not update stats in ", junit_dir, ": ", e, exit=False)
+                boot_automation.failure("Could not update stats in ", junit_dir, ": ", e, exit=False)
                 tests_successful = False
 
     if args.interact or args.skip_poweroff:
-        boot_cheribsd.info("Skipping poweroff step since --interact/--skip-poweroff was passed.")
+        boot_automation.info("Skipping poweroff step since --interact/--skip-poweroff was passed.")
         return tests_successful
 
     poweroff_start = datetime.datetime.now()
@@ -266,18 +266,18 @@ def run_cheribsd_test(qemu: boot_cheribsd.QemuGuestInstance, args: argparse.Name
 
     if i != 0:
         # Note: we mark tests as failed instead exitings here so that JUnit XML files are still archived.
-        boot_cheribsd.failure("Poweroff " + ("timed out" if i == 1 else "failed"), exit=False)
+        boot_automation.failure("Poweroff " + ("timed out" if i == 1 else "failed"), exit=False)
         return False
     # 300 secs since it takes a lot longer on a full image (it took 44 seconds after installing kyua, so on a really
     # busy jenkins slave it might be a lot slower)
     if qemu.expect([pexpect.TIMEOUT, "Please press any key to reboot.", pexpect.EOF], timeout=300) == 0:
         # If we don't get the "press any key to reboot"/QEMU EOF, we mark the test as unstable.
         # Note: we mark tests as failed instead exitings here so that JUnit XML files are still archived.
-        boot_cheribsd.failure("Timeout waiting for QEMU to exit after shutdown!", exit=False)
+        boot_automation.failure("Timeout waiting for QEMU to exit after shutdown!", exit=False)
         return False
-    boot_cheribsd.success("Poweroff took: ", datetime.datetime.now() - poweroff_start)
+    boot_automation.success("Poweroff took: ", datetime.datetime.now() - poweroff_start)
     if tests_successful and qemu.shared_mount_failed:
-        boot_cheribsd.info("Tests succeeded, but shared mount failed -> marking tests as failed.")
+        boot_automation.info("Tests succeeded, but shared mount failed -> marking tests as failed.")
         tests_successful = False
     return tests_successful
 
@@ -293,12 +293,12 @@ def cheribsd_setup_args(args: argparse.Namespace):
         print(args.kyua_tests_files)
         for file in args.kyua_tests_files:
             if not Path(file).name == "Kyuafile":
-                boot_cheribsd.failure("Expected a path to a Kyuafile but got: ", file, exit=True)
+                boot_automation.failure("Expected a path to a Kyuafile but got: ", file, exit=True)
     # Make sure we mount the output directory if we are running kyua and/or cheribsdtest
     if args.kyua_tests_files or args.run_cheribsdtest:
         test_output_dir = Path(os.path.expandvars(os.path.expanduser(args.test_output_dir)))
         if not test_output_dir.is_dir():
-            boot_cheribsd.failure("Output directory does not exist: ", test_output_dir, exit=True)
+            boot_automation.failure("Output directory does not exist: ", test_output_dir, exit=True)
         # Create a timestamped directory:
         if args.no_timestamped_test_subdir:
             real_output_dir = test_output_dir.absolute()
@@ -306,11 +306,11 @@ def cheribsd_setup_args(args: argparse.Namespace):
             args.timestamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
             real_output_dir = (test_output_dir / args.timestamp).absolute()
         args.test_output_dir = str(real_output_dir)
-        boot_cheribsd.run_host_command(["mkdir", "-p", str(real_output_dir)])
+        boot_automation.run_host_command(["mkdir", "-p", str(real_output_dir)])
         if not get_global_config().pretend:
             (real_output_dir / "cmdline").write_text(str(sys.argv), encoding="utf-8")
         args.shared_mount_directories.append(
-            boot_cheribsd.SharedMount(real_output_dir, readonly=False, in_target="/test-results"),
+            boot_automation.SharedMount(real_output_dir, readonly=False, in_target="/test-results"),
         )
 
 

@@ -32,11 +32,11 @@
 import argparse
 from pathlib import Path
 
-from run_tests_common import boot_cheribsd, junitparser, run_tests_main
+from run_tests_common import boot_automation, junitparser, run_tests_main
 
 
-def setup_qtwebkit_test_environment(qemu: boot_cheribsd.GuestInstance, _: argparse.Namespace):
-    boot_cheribsd.set_ld_library_path_with_sysroot(qemu)
+def setup_qtwebkit_test_environment(qemu: boot_automation.GuestInstance, _: argparse.Namespace):
+    boot_automation.set_ld_library_path_with_sysroot(qemu)
     qemu.run("export ICU_DATA=/sysroot/usr/local/share/icu/60.0.1")
     qemu.run("export LANG=en_US.UTF-8")
     qemu.run("echo '<h1>Hello World!</h1>' > /tmp/helloworld.html")
@@ -57,7 +57,7 @@ def setup_qtwebkit_test_environment(qemu: boot_cheribsd.GuestInstance, _: argpar
     qemu.checked_run("cp /build/mime.cache /usr/share/mime")
     qemu.checked_run("cp /build/freedesktop.org.xml /usr/share/mime/packages/freedesktop.org.xml")
 
-    boot_cheribsd.success(
+    boot_automation.success(
         "To debug crashes run: `sysctl kern.corefile=/build/%N.%P.core; sysctl kern.coredump=1`"
         " and then run CHERI gdb on the host system.",
     )
@@ -67,8 +67,8 @@ def setup_qtwebkit_test_environment(qemu: boot_cheribsd.GuestInstance, _: argpar
     qemu.checked_run("cp /build/bin/DumpRenderTree.stripped /tmp/DumpRenderTree")
 
 
-def run_qtwebkit_tests(qemu: boot_cheribsd.GuestInstance, args: argparse.Namespace) -> bool:
-    boot_cheribsd.info("Running QtWebkit tests")
+def run_qtwebkit_tests(qemu: boot_automation.GuestInstance, args: argparse.Namespace) -> bool:
+    boot_automation.info("Running QtWebkit tests")
     try:
         # Check that jsc + dumprendertree work
         qemu.checked_run("/tmp/jsc --help", timeout=1200)
@@ -92,7 +92,7 @@ def run_qtwebkit_tests(qemu: boot_cheribsd.GuestInstance, args: argparse.Namespa
                 xml.update_statistics()
                 xml.write()
         except Exception as e:
-            boot_cheribsd.failure("Could not update JUnit XML", tests_xml_path, ": ", e, exit=False)
+            boot_automation.failure("Could not update JUnit XML", tests_xml_path, ": ", e, exit=False)
 
 
 def add_args(parser: argparse.ArgumentParser):

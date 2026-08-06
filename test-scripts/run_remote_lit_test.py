@@ -41,7 +41,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Optional
 
-from run_tests_common import boot_cheribsd, commandline_to_str, pexpect
+from run_tests_common import boot_automation, commandline_to_str, pexpect
 
 from pycheribuild.ssh_utils import generate_ssh_config_file_for_qemu, ssh_host_accessible_uncached
 from pycheribuild.utils import get_global_config
@@ -96,13 +96,13 @@ def adjust_common_cmdline_args(args: argparse.Namespace):
         shared_tmpdir.mkdir(parents=True, exist_ok=True)
         args.shared_tmpdir_local = shared_tmpdir
         args.shared_mount_directories.append(
-            boot_cheribsd.SharedMount(shared_tmpdir, readonly=False, in_target="/shared-tmpdir"),
+            boot_automation.SharedMount(shared_tmpdir, readonly=False, in_target="/shared-tmpdir"),
         )
 
 
 def mp_debug(cmdline_args: argparse.Namespace, *args, **kwargs):
     if cmdline_args.multiprocessing_debug:
-        boot_cheribsd.info(*args, **kwargs)
+        boot_automation.info(*args, **kwargs)
 
 
 def notify_main_process(
@@ -123,7 +123,7 @@ def notify_main_process(
         mp_debug(cmdline_args, "Barrier released for stage ", stage)
 
 
-def flush_thread(f, qemu: boot_cheribsd.QemuGuestInstance, should_exit_event: threading.Event):
+def flush_thread(f, qemu: boot_automation.QemuGuestInstance, should_exit_event: threading.Event):
     while not should_exit_event.wait(timeout=0.1):
         if f:
             f.flush()
@@ -131,27 +131,27 @@ def flush_thread(f, qemu: boot_cheribsd.QemuGuestInstance, should_exit_event: th
             break
         # keep reading line-by-line to output any QEMU trap messages:
         crlf = qemu.crlf.decode("utf-8") if isinstance(qemu.crlf, bytes) else qemu.crlf
-        patterns: boot_cheribsd.PatternListType = [pexpect.TIMEOUT, "KDB: enter:", pexpect.EOF, crlf]
+        patterns: boot_automation.PatternListType = [pexpect.TIMEOUT, "KDB: enter:", pexpect.EOF, crlf]
         i = qemu.expect(patterns, timeout=qemu.flush_interval, log_patterns=False)
         if get_global_config().pretend:
             time.sleep(1)
         elif i == 1:
-            boot_cheribsd.failure("GOT KERNEL PANIC!", exit=False)
-            boot_cheribsd.debug_kernel_panic(qemu)
+            boot_automation.failure("GOT KERNEL PANIC!", exit=False)
+            boot_automation.debug_kernel_panic(qemu)
             global KERNEL_PANIC  # noqa: PLW0603
             KERNEL_PANIC = True  # TODO: tell lit to abort now....
         elif i == 2:
-            boot_cheribsd.failure("GOT QEMU EOF!", exit=False)
+            boot_automation.failure("GOT QEMU EOF!", exit=False)
             # QEMU exited?
             break
     # One final expect to flush the buffer:
     qemu.expect([pexpect.TIMEOUT, pexpect.EOF], timeout=1)
-    boot_cheribsd.success("QEMU output flushing thread terminated.")
+    boot_automation.success("QEMU output flushing thread terminated.")
 
 
 def run_remote_lit_tests(
     testsuite: str,
-    qemu: boot_cheribsd.GuestInstance,
+    qemu: boot_automation.GuestInstance,
     args: argparse.Namespace,
     tempdir: str,
     *,
@@ -165,7 +165,7 @@ def run_remote_lit_tests(
     try:
         subprocess.check_call([sys.executable, "-c", "import psutil"])
     except subprocess.CalledProcessError:
-        boot_cheribsd.failure("Cannot run lit without `psutil` python module installed", exit=True)
+        boot_automation.failure("Cannot run lit without `psutil` python module installed", exit=True)
     try:
         if mp_q:
             assert barrier is not None
@@ -186,7 +186,7 @@ def run_remote_lit_tests(
         return result
     except Exception:
         if mp_q:
-            boot_cheribsd.failure("GOT EXCEPTION in shard ", args.internal_shard, ": ", sys.exc_info(), exit=False)
+            boot_automation.failure("GOT EXCEPTION in shard ", args.internal_shard, ": ", sys.exc_info(), exit=False)
             e = sys.exc_info()[1]
             mp_q.put((FAILURE, args.internal_shard, str(type(e)) + ": " + str(e)))
         raise
@@ -194,7 +194,7 @@ def run_remote_lit_tests(
 
 def run_remote_lit_tests_impl(
     testsuite: str,
-    qemu: boot_cheribsd.GuestInstance,
+    qemu: boot_automation.GuestInstance,
     args: argparse.Namespace,
     tempdir: str,
     test_dirs: "list[str]",
@@ -205,7 +205,7 @@ def run_remote_lit_tests_impl(
     lit_extra_args: Optional[list] = None,
 ) -> bool:
     qemu.EXIT_ON_KERNEL_PANIC = False  # since we run multiple threads we shouldn't use sys.exit()
-    boot_cheribsd.info("PID of QEMU: ", qemu.pid)
+    boot_automation.info("PID of QEMU: ", qemu.pid)
 
     if get_global_config().pretend and os.getenv("FAIL_TIMEOUT_BOOT") and args.internal_shard == 2:
         time.sleep(10)
@@ -226,7 +226,7 @@ def run_remote_lit_tests_impl(
     )
     with Path(tempdir, "config").open("w", encoding="utf-8") as c:
         c.write(config_contents)
-    boot_cheribsd.run_host_command(["cat", str(Path(tempdir, "config"))])
+    boot_automation.run_host_command(["cat", str(Path(tempdir, "config"))])
 
     # Check that the config file works:
 
@@ -239,23 +239,23 @@ def run_remote_lit_tests_impl(
             run_in_pretend_mode=False,
         ):
             connection_time = (datetime.datetime.now(datetime.timezone.utc) - connection_test_start).total_seconds()
-            boot_cheribsd.success(prefix, " successful after ", connection_time, " seconds")
+            boot_automation.success(prefix, " successful after ", connection_time, " seconds")
         else:
-            boot_cheribsd.failure("Failed to connect via SSH", exit=True)
+            boot_automation.failure("Failed to connect via SSH", exit=True)
 
     check_ssh_connection("First SSH connection")
     controlmaster_running = False
     try:
         # Check that controlmaster worked by running ssh -O check
-        boot_cheribsd.info("Checking if SSH control master is working.")
-        boot_cheribsd.run_host_command(
+        boot_automation.info("Checking if SSH control master is working.")
+        boot_automation.run_host_command(
             ["ssh", "-F", str(Path(tempdir, "config")), "cheribsd-test-instance", "-p", str(port), "-O", "check"],
             cwd=str(test_build_dir),
         )
         check_ssh_connection("Second SSH connection (with controlmaster)")
         controlmaster_running = True
     except subprocess.CalledProcessError:
-        boot_cheribsd.failure(
+        boot_automation.failure(
             "WARNING: Could not connect to ControlMaster SSH connection. Running tests will be slower",
             exit=False,
         )
@@ -287,7 +287,7 @@ def run_remote_lit_tests_impl(
         ssh_executor_args.append("--extra-scp-args=" + extra_scp_args)
     executor = commandline_to_str(ssh_executor_args)
     # TODO: I was previously passing -t -t to ssh. Is this actually needed?
-    boot_cheribsd.success("Running", testsuite, "tests with executor", executor)
+    boot_automation.success("Running", testsuite, "tests with executor", executor)
     notify_main_process(args, MultiprocessStages.RUNNING_TESTS, mp_q, barrier=barrier)
     # have to use -j1 since otherwise CheriBSD might wedge
     if llvm_lit_path is None:
@@ -321,7 +321,7 @@ def run_remote_lit_tests_impl(
         lit_cmd.append("--run-shard=" + str(args.internal_shard))
         if xunit_file:
             assert qemu_logfile is not None, "Should have a valid logfile when running multiple shards"
-            boot_cheribsd.success("Writing QEMU output to ", qemu_logfile)
+            boot_automation.success("Writing QEMU output to ", qemu_logfile)
     if not args.include_long_tests:
         lit_cmd.append("-Dlong_tests=False")
     # Fixme starting lit at the same time does not work!
@@ -334,8 +334,8 @@ def run_remote_lit_tests_impl(
     t.start()
     shard_prefix = "SHARD" + str(args.internal_shard) + ": " if args.internal_shard else ""
     try:
-        boot_cheribsd.success("Starting llvm-lit: cd ", test_build_dir, " && ", " ".join(lit_cmd))
-        boot_cheribsd.run_host_command(lit_cmd, cwd=str(test_build_dir))
+        boot_automation.success("Starting llvm-lit: cd ", test_build_dir, " && ", " ".join(lit_cmd))
+        boot_automation.run_host_command(lit_cmd, cwd=str(test_build_dir))
         # lit_proc = pexpect.spawnu(lit_cmd[0], lit_cmd[1:], echo=True, timeout=60, cwd=str(test_build_dir))
         # TODO: get stderr!!
         # while lit_proc.isalive():
@@ -352,9 +352,9 @@ def run_remote_lit_tests_impl(
         #     print(shard_prefix + lit_proc.read())
         # print("Lit finished.")
         # if lit_proc and lit_proc.exitstatus == 1:
-        #     boot_cheribsd.failure(shard_prefix + "SOME TESTS FAILED", exit=False)
+        #     boot_automation.failure(shard_prefix + "SOME TESTS FAILED", exit=False)
     except subprocess.CalledProcessError as e:
-        boot_cheribsd.failure(shard_prefix + "SOME TESTS FAILED: ", e, exit=False)
+        boot_automation.failure(shard_prefix + "SOME TESTS FAILED: ", e, exit=False)
         # Should only ever return 1 (otherwise something else went wrong!)
         if e.returncode == 1:
             return False
@@ -364,9 +364,9 @@ def run_remote_lit_tests_impl(
         if qemu_logfile:
             qemu_logfile.flush()
         if controlmaster_running:
-            boot_cheribsd.info("Terminating SSH controlmaster")
+            boot_automation.info("Terminating SSH controlmaster")
             try:
-                boot_cheribsd.run_host_command(
+                boot_automation.run_host_command(
                     [
                         "ssh",
                         "-F",
@@ -380,12 +380,12 @@ def run_remote_lit_tests_impl(
                     cwd=str(test_build_dir),
                 )
             except subprocess.CalledProcessError:
-                boot_cheribsd.failure("Could not close SSH controlmaster connection.", exit=False)
+                boot_automation.failure("Could not close SSH controlmaster connection.", exit=False)
         qemu.flush_interval = 0.1
         should_exit_event.set()
         t.join(timeout=30)
         if t.is_alive():
-            boot_cheribsd.failure("Failed to kill flush thread. Interacting with CheriBSD will not work!", exit=True)
+            boot_automation.failure("Failed to kill flush thread. Interacting with CheriBSD will not work!", exit=True)
         if not qemu.isalive():
-            boot_cheribsd.failure("QEMU died while running tests! ", qemu, exit=True)
+            boot_automation.failure("QEMU died while running tests! ", qemu, exit=True)
     return True

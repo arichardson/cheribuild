@@ -31,11 +31,11 @@
 #
 import argparse
 
-from run_tests_common import boot_cheribsd, run_tests_main
+from run_tests_common import boot_automation, run_tests_main
 
 
-def run_postgres_tests(qemu: boot_cheribsd.QemuGuestInstance, args: argparse.Namespace) -> bool:
-    boot_cheribsd.info("Running PostgreSQL tests")
+def run_postgres_tests(qemu: boot_automation.QemuGuestInstance, args: argparse.Namespace) -> bool:
+    boot_automation.info("Running PostgreSQL tests")
     if args.minimal_image:
         qemu.checked_run("ln -s /locale /usr/share/locale")
     # check that the locale files exist
@@ -53,7 +53,7 @@ def add_args(parser: argparse.ArgumentParser):
 def adjust_args(args: argparse.Namespace):
     if args.minimal_image:
         args.shared_mount_directories.append(
-            boot_cheribsd.SharedMount(args.locale_files_dir, readonly=True, in_target="/locale"),
+            boot_automation.SharedMount(args.locale_files_dir, readonly=True, in_target="/locale"),
         )
 
 

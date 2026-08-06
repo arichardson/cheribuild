@@ -34,7 +34,7 @@ from pathlib import Path
 from typing import Optional
 
 from run_tests_common import (
-    boot_cheribsd,
+    boot_automation,
     commandline_to_str,
     finish_and_write_junit_xml_report,
     get_default_junit_xml_name,
@@ -43,18 +43,18 @@ from run_tests_common import (
 )
 
 
-def do_setup(qemu: boot_cheribsd.GuestInstance, args: argparse.Namespace):
+def do_setup(qemu: boot_automation.GuestInstance, args: argparse.Namespace):
     if args.test_setup_commands:
         # If the user supplied test setup steps, run them now.
         for command in args.test_setup_commands:
             qemu.checked_run(command)
     else:
         # Otherwise, we just set up the default LD_LIBRARY_PATH.
-        boot_cheribsd.set_ld_library_path_with_sysroot(qemu)
+        boot_automation.set_ld_library_path_with_sysroot(qemu)
     qemu.checked_run(f"cd {args.build_dir}")
 
 
-def run_meson_tests(qemu: boot_cheribsd.GuestInstance, args: argparse.Namespace) -> bool:
+def run_meson_tests(qemu: boot_automation.GuestInstance, args: argparse.Namespace) -> bool:
     xml = junitparser.JUnitXml()
     all_tests_starttime = datetime.datetime.now(datetime.timezone.utc)
     for ti in args.test_info:
@@ -73,9 +73,9 @@ def run_meson_tests(qemu: boot_cheribsd.GuestInstance, args: argparse.Namespace)
                 timeout=ti.timeout or 10 * 60,
             )
             # TODO: TAP protocol parsing instead of using 0/1 return code.
-        except boot_cheribsd.CommandFailedError as e:
-            boot_cheribsd.failure("Failed to run ", ti.name, ": ", str(e), exit=False)
-            if isinstance(e, boot_cheribsd.CommandTimeoutError):
+        except boot_automation.CommandFailedError as e:
+            boot_automation.failure("Failed to run ", ti.name, ": ", str(e), exit=False)
+            if isinstance(e, boot_automation.CommandTimeoutError):
                 t.result = junitparser.Failure(message="Command timed out")
                 # Send CTRL+C if the process timed out.
                 qemu.sendintr()
@@ -114,7 +114,7 @@ def adjust_args(args: argparse.Namespace):
     # Parse the JSON file containing test information (see https://mesonbuild.com/IDE-integration.html)
     tests_json_path = Path(args.build_dir, "meson-info/intro-tests.json")
     if not tests_json_path.exists():
-        boot_cheribsd.failure("Could not find test information (", tests_json_path, ")", exit=True)
+        boot_automation.failure("Could not find test information (", tests_json_path, ")", exit=True)
     args.test_info = []
     with tests_json_path.open("r") as f:
         tests_json = json.load(f)
@@ -122,7 +122,7 @@ def adjust_args(args: argparse.Namespace):
             protocol = test.get("protocol", None)
             name = test["name"]
             if protocol not in ("exitcode", "tap"):
-                boot_cheribsd.failure(
+                boot_automation.failure(
                     "Unknown/unsupported testing protocol '",
                     protocol,
                     "' for test",

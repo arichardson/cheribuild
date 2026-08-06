@@ -29,11 +29,11 @@ import os
 import subprocess
 from pathlib import Path
 
-from run_tests_common import boot_cheribsd, run_tests_main
+from run_tests_common import boot_automation, run_tests_main
 
 
-def run_libffi_tests(qemu: boot_cheribsd.QemuGuestInstance, args: argparse.Namespace) -> bool:
-    boot_cheribsd.info("Running libffi tests")
+def run_libffi_tests(qemu: boot_automation.QemuGuestInstance, args: argparse.Namespace) -> bool:
+    boot_automation.info("Running libffi tests")
     print(args)
     # copy the shared libraries to the host and link to /usr/lib so that the tests can run:
     for i in Path(args.build_dir, ".libs").glob("libffi.so*"):
@@ -68,23 +68,23 @@ set_board_info ssh_opts "-i {qemu.ssh_private_key} {ssh_options}"
 """,
         encoding="utf-8",
     )
-    boot_cheribsd.run_host_command(["runtest", "--version"])
+    boot_automation.run_host_command(["runtest", "--version"])
     tests_okay = False
     try:
         # Note: we have to use dict(os.environ, **dict(...)) to update env, since env=... overrides it.
-        boot_cheribsd.run_host_command(
+        boot_automation.run_host_command(
             ["make", "check", "RUNTESTFLAGS=-a --target-board remote-cheribsd --xml"],
             env=dict(os.environ, **dict(BOARDSDIR=str(args.build_dir), DEJAGNU=str(Path(args.build_dir, "site.exp")))),
             cwd=str(args.build_dir),
         )
         tests_okay = True
     except subprocess.CalledProcessError:
-        boot_cheribsd.failure("Some tests failed", exit=False)
+        boot_automation.failure("Some tests failed", exit=False)
 
     # TODO: parse the XML output/.sum file to generate a JUnit XML file
     test_summary = Path(args.build_dir, "testsuite/libffi.sum")
     if test_summary.exists():
-        boot_cheribsd.info("Test summary:\n", test_summary.read_text())
+        boot_automation.info("Test summary:\n", test_summary.read_text())
     return tests_okay
 
 

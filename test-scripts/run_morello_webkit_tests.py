@@ -29,7 +29,7 @@ import argparse
 import datetime
 
 from run_tests_common import (
-    boot_cheribsd,
+    boot_automation,
     finish_and_write_junit_xml_report,
     get_default_junit_xml_name,
     junitparser,
@@ -37,15 +37,15 @@ from run_tests_common import (
 )
 
 
-def setup_webkit_tests(qemu: boot_cheribsd.GuestInstance, _: argparse.Namespace) -> None:
+def setup_webkit_tests(qemu: boot_automation.GuestInstance, _: argparse.Namespace) -> None:
     qemu.checked_run(
         f"export LD_LIBRARY_PATH=/opt/{qemu.xtarget.generic_arch_suffix}/webkit/lib:"
         f"/usr/local/{qemu.xtarget.generic_arch_suffix}/lib/",
     )
 
 
-def run_webkit_tests(qemu: boot_cheribsd.GuestInstance, args: argparse.Namespace) -> bool:
-    boot_cheribsd.info("Running SunSpider jsc tests")
+def run_webkit_tests(qemu: boot_automation.GuestInstance, args: argparse.Namespace) -> bool:
+    boot_automation.info("Running SunSpider jsc tests")
     sunspider_tests = [
         "3d-cube.js",
         "access-fannkuch.js",
@@ -86,9 +86,9 @@ def run_webkit_tests(qemu: boot_cheribsd.GuestInstance, args: argparse.Namespace
                 f" /source/PerformanceTests/SunSpider/tests/sunspider-1.0.2/{test}",
                 timeout=300,
             )
-        except boot_cheribsd.CommandFailedError as e:
-            boot_cheribsd.failure("Failed to run ", test, ": ", str(e), exit=False)
-            if isinstance(e, boot_cheribsd.CommandTimeoutError):
+        except boot_automation.CommandFailedError as e:
+            boot_automation.failure("Failed to run ", test, ": ", str(e), exit=False)
+            if isinstance(e, boot_automation.CommandTimeoutError):
                 t.result = junitparser.Failure(message="Command timed out")
                 # Send CTRL+C if the process timed out.
                 qemu.sendintr()

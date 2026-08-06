@@ -31,13 +31,13 @@
 #
 import argparse
 
-from run_tests_common import boot_cheribsd, run_tests_main
+from run_tests_common import boot_automation, run_tests_main
 
 
-def run_simple_test(qemu: boot_cheribsd.QemuGuestInstance, args: argparse.Namespace) -> bool:
+def run_simple_test(qemu: boot_automation.QemuGuestInstance, args: argparse.Namespace) -> bool:
     if args.sysroot_dir is not None:
-        boot_cheribsd.set_ld_library_path_with_sysroot(qemu)
-    boot_cheribsd.info("Running tests")
+        boot_automation.set_ld_library_path_with_sysroot(qemu)
+    boot_automation.info("Running tests")
     # TODO: copy over the logfile and enable coredumps?
     # Run tests with a two hour timeout:
     qemu.checked_run(f"cd '{qemu.shared_dirs[0].in_target}'", timeout=10)
@@ -63,7 +63,7 @@ def add_args(parser: argparse.ArgumentParser):
 def adjust_args(args: argparse.Namespace):
     # We don't support parallel jobs but are reusing libcxx infrastructure -> set the expected vars
     if not args.test_command:
-        boot_cheribsd.failure("--test-command must be set!", exit=True)
+        boot_automation.failure("--test-command must be set!", exit=True)
 
 
 if __name__ == "__main__":

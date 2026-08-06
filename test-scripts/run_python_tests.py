@@ -32,13 +32,13 @@
 import argparse
 from pathlib import Path
 
-from run_tests_common import boot_cheribsd, run_tests_main
+from run_tests_common import boot_automation, run_tests_main
 
 
-def run_tests(qemu: boot_cheribsd.GuestInstance, args: argparse.Namespace) -> bool:
-    boot_cheribsd.info("Running Python tests")
+def run_tests(qemu: boot_automation.GuestInstance, args: argparse.Namespace) -> bool:
+    boot_automation.info("Running Python tests")
     # Need the library path for libpython.so
-    boot_cheribsd.prepend_ld_library_path(qemu, "/build")
+    boot_automation.prepend_ld_library_path(qemu, "/build")
     # When running the full test suite we want all python files in tmpfs:
     if args.full_test:
         # copy python libs from smb to tmpfs:

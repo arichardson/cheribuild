@@ -32,17 +32,17 @@
 import argparse
 import os
 
-from run_tests_common import boot_cheribsd, run_tests_main
+from run_tests_common import boot_automation, run_tests_main
 
 
-def run_libcxxrt_tests(qemu: boot_cheribsd.GuestInstance, _: argparse.Namespace) -> bool:
-    boot_cheribsd.info("Running libcxxrt tests")
-    boot_cheribsd.set_ld_library_path_with_sysroot(qemu)
+def run_libcxxrt_tests(qemu: boot_automation.GuestInstance, _: argparse.Namespace) -> bool:
+    boot_automation.info("Running libcxxrt tests")
+    boot_automation.set_ld_library_path_with_sysroot(qemu)
     qemu.run("export LIBUNWIND_PRINT_UNWINDING=1", timeout=2)
     qemu.run("export LIBUNWIND_PRINT_APIS=1", timeout=2)
     qemu.run("export LIBUNWIND_PRINT_DWARF=1", timeout=2)
     # Add the libunwind library dirs so that the local one is picked up
-    boot_cheribsd.prepend_ld_library_path(qemu, "/libunwind/lib")
+    boot_automation.prepend_ld_library_path(qemu, "/libunwind/lib")
 
     qemu.checked_run("'/build/bin/cxxrt-test-static' -v")
     qemu.checked_run("'/build/bin/cxxrt-test-foreign-exceptions' -v")
@@ -62,7 +62,7 @@ def add_args(parser: argparse.ArgumentParser):
 def adjust_args(args: argparse.Namespace):
     args.build_dir = os.path.abspath(os.path.expandvars(os.path.expanduser(args.build_dir)))
     args.shared_mount_directories.append(
-        boot_cheribsd.SharedMount(args.libunwind_build_dir, readonly=True, in_target="/libunwind"),
+        boot_automation.SharedMount(args.libunwind_build_dir, readonly=True, in_target="/libunwind"),
     )
 
 

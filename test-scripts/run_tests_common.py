@@ -51,15 +51,15 @@ sys.path.insert(1, str(_cheribuild_root))
 import junitparser  # noqa: E402
 import pexpect  # noqa: E402
 
-from pycheribuild import boot_cheribsd  # noqa: E402
-from pycheribuild.boot_cheribsd import QemuGuestInstance  # noqa: E402
+from pycheribuild import boot_automation  # noqa: E402
+from pycheribuild.boot_automation import QemuGuestInstance  # noqa: E402
 from pycheribuild.config.target_info import CrossCompileTarget  # noqa: E402
 from pycheribuild.processutils import commandline_to_str  # noqa: E402
 from pycheribuild.utils import get_global_config  # noqa: E402
 
 __all__ = [
     "CrossCompileTarget",
-    "boot_cheribsd",
+    "boot_automation",
     "commandline_to_str",
     "finish_and_write_junit_xml_report",
     "get_default_junit_xml_name",
@@ -101,8 +101,8 @@ def finish_and_write_junit_xml_report(
         # pyrefly: ignore [unsupported-operation]
         if suite.errors > 0 or suite.failures > 0:
             failed_test_suites.append(suite)
-    boot_cheribsd.info("JUnit results:", xml)
-    boot_cheribsd.info(
+    boot_automation.info("JUnit results:", xml)
+    boot_automation.info(
         "Ran " + str(num_testsuites),
         " test suites in ",
         (datetime.datetime.now(datetime.timezone.utc) - all_tests_starttime),
@@ -124,7 +124,7 @@ def finish_and_write_junit_xml_report(
                     break
             return result
 
-        boot_cheribsd.failure(
+        boot_automation.failure(
             "The following ",
             len(failed_test_suites),
             " tests failed:\n\t",
@@ -132,7 +132,7 @@ def finish_and_write_junit_xml_report(
             exit=False,
         )
     else:
-        boot_cheribsd.success(
+        boot_automation.success(
             "All ",
             xml.tests,
             " tests (",
@@ -143,7 +143,7 @@ def finish_and_write_junit_xml_report(
     # Finally, write the Junit XML file:
     if not get_global_config().pretend:
         xml.write(output_file, pretty=True)
-    boot_cheribsd.info("Wrote Junit results to ", output_file)
+    boot_automation.info("Wrote Junit results to ", output_file)
     return not failed_test_suites
 
 
@@ -184,23 +184,23 @@ def run_tests_main(
             # get at the source directory using a relative path (../../my-srcdir ends up resolving to /my-srcdir).
             path_in_target = build_dir_in_target if build_dir_in_target is not None else args.build_dir
             args.shared_mount_directories.append(
-                boot_cheribsd.SharedMount(args.build_dir, readonly=False, in_target=path_in_target),
+                boot_automation.SharedMount(args.build_dir, readonly=False, in_target=path_in_target),
             )
         if should_mount_srcdir or args.source_dir:
             args.source_dir = os.path.abspath(os.path.expandvars(os.path.expanduser(args.source_dir)))
             args.shared_mount_directories.append(
-                boot_cheribsd.SharedMount(args.source_dir, readonly=True, in_target="/source"),
+                boot_automation.SharedMount(args.source_dir, readonly=True, in_target="/source"),
             )
         if should_mount_sysroot or args.sysroot_dir:
             args.sysroot_dir = os.path.abspath(os.path.expandvars(os.path.expanduser(args.sysroot_dir)))
             args.shared_mount_directories.append(
-                boot_cheribsd.SharedMount(args.sysroot_dir, readonly=True, in_target="/sysroot"),
+                boot_automation.SharedMount(args.sysroot_dir, readonly=True, in_target="/sysroot"),
             )
         if should_mount_installdir or args.install_destdir:
             args.install_destdir = os.path.abspath(os.path.expandvars(os.path.expanduser(args.install_destdir)))
             assert args.install_prefix and args.install_prefix[0] == "/"
             args.shared_mount_directories.append(
-                boot_cheribsd.SharedMount(
+                boot_automation.SharedMount(
                     args.install_destdir + args.install_prefix,
                     readonly=True,
                     in_target=args.install_prefix,
@@ -216,14 +216,14 @@ def run_tests_main(
             assert args.source_dir
             qemu.run(f"mkdir -p '{Path(args.source_dir).parent}'")
             qemu.checked_run(f"ln -sf /source '{args.source_dir}'", timeout=60)
-            boot_cheribsd.success("Mounted source directory using host path")
+            boot_automation.success("Mounted source directory using host path")
         # Finally call the custom test setup function
         if test_setup_function:
             test_setup_function(qemu, args)
 
     assert sys.path[0] == str(Path(__file__).parent.absolute()), sys.path
     assert sys.path[1] == str(Path(__file__).parent.parent.absolute()), sys.path
-    boot_cheribsd.main(
+    boot_automation.main(
         test_function=test_function,  # pyrefly: ignore[bad-argument-type]
         test_setup_function=default_setup_tests,  # pyrefly: ignore[bad-argument-type]
         argparse_setup_callback=default_add_cmdline_args,

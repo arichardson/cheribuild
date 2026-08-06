@@ -33,7 +33,7 @@ import argparse
 import shutil
 from pathlib import Path
 
-from run_tests_common import boot_cheribsd, junitparser, run_tests_main
+from run_tests_common import boot_automation, junitparser, run_tests_main
 
 
 def output_to_junit_suite(xml, output_path, suite_name, good=True):
@@ -76,14 +76,14 @@ def add_args(parser: argparse.ArgumentParser):
     )
 
 
-def setup_juliet_test_environment(qemu: boot_cheribsd.GuestInstance, args: argparse.Namespace):
-    boot_cheribsd.set_ld_library_path_with_sysroot(qemu)
+def setup_juliet_test_environment(qemu: boot_automation.GuestInstance, args: argparse.Namespace):
+    boot_automation.set_ld_library_path_with_sysroot(qemu)
     if args.test_setup_commands:
         for command in args.test_setup_commands:
             qemu.checked_run(command)
 
 
-def run_juliet_tests(qemu: boot_cheribsd.GuestInstance, args: argparse.Namespace) -> bool:
+def run_juliet_tests(qemu: boot_automation.GuestInstance, args: argparse.Namespace) -> bool:
     # args.ld_preload_path should be a path on the host
     if args.ld_preload_path:
         # hack until libcaprevoke is always present in cheribsd and can be added to the disk image via METALOG:
@@ -93,7 +93,7 @@ def run_juliet_tests(qemu: boot_cheribsd.GuestInstance, args: argparse.Namespace
         try:
             shutil.copy2(args.ld_preload_path, args.build_dir)
         except Exception as e:
-            boot_cheribsd.failure("could not copy shared library for preload: ", e, exit=True)
+            boot_automation.failure("could not copy shared library for preload: ", e, exit=True)
             return False
         preload_path = Path(args.ld_preload_path)
         run_command = "/build/juliet-run.sh {} {}".format(args.testcase_timeout, "/build/" + preload_path.name)

@@ -32,7 +32,7 @@ import tempfile
 from pathlib import Path
 from typing import Optional
 
-from run_tests_common import boot_cheribsd, junitparser
+from run_tests_common import boot_automation, junitparser
 
 from pycheribuild.utils import get_global_config
 
@@ -41,14 +41,14 @@ def convert_kyua_db_to_junit_xml(db_file: Path, output_file: Path, prefix: "Opti
     assert output_file.resolve() != db_file.resolve()
     with output_file.open("w", encoding="utf-8") as output_stream:
         command = ["kyua", "report-junit", "--results-file=" + str(db_file)]
-        boot_cheribsd.run_host_command(command, stdout=output_stream)
+        boot_automation.run_host_command(command, stdout=output_stream)
         # TODO: xml escape the file?
         if not get_global_config().pretend:
             fixup_kyua_generated_junit_xml(output_file, prefix)
 
 
 def fixup_kyua_generated_junit_xml(xml_file: Path, prefix: "Optional[str]" = None):
-    boot_cheribsd.info("Updating statistics in JUnit file ", xml_file)
+    boot_automation.info("Updating statistics in JUnit file ", xml_file)
     # Process junit xml file with junitparser to update the number of tests, failures, total time, etc.
     orig_xml_str = xml_file.read_text("utf-8", errors="backslashreplace")
     xml_str = orig_xml_str
@@ -77,7 +77,7 @@ def fixup_kyua_generated_junit_xml(xml_file: Path, prefix: "Optional[str]" = Non
                     suite.name = prefix if suite.name is None else prefix + "/" + suite.name
         # Now we can overwrite the input file
         xml.write(str(xml_file))
-        boot_cheribsd.run_host_command(["grep", "<testsuite", str(xml_file)])
+        boot_automation.run_host_command(["grep", "<testsuite", str(xml_file)])
 
 
 if __name__ == "__main__":

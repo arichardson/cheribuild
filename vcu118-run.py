@@ -49,7 +49,7 @@ sys.path.insert(1, str(_cheribuild_root))
 from serial.tools.list_ports import comports  # noqa: E402
 from serial.tools.list_ports_common import ListPortInfo  # noqa: E402
 
-from pycheribuild.boot_cheribsd import (  # noqa: E402
+from pycheribuild.boot_automation import (  # noqa: E402
     GuestInstance,
     GuestSpawnMixin,
     PretendSpawn,

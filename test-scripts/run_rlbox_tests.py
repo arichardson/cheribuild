@@ -30,11 +30,11 @@ import argparse
 import stat
 from pathlib import Path
 
-from run_tests_common import boot_cheribsd, run_tests_main
+from run_tests_common import boot_automation, run_tests_main
 
 
-def run_rlbox_tests(qemu: boot_cheribsd.GuestInstance, args: argparse.Namespace) -> bool:
-    boot_cheribsd.set_ld_library_path_with_sysroot(qemu)
+def run_rlbox_tests(qemu: boot_automation.GuestInstance, args: argparse.Namespace) -> bool:
+    boot_automation.set_ld_library_path_with_sysroot(qemu)
     # Note: CTest does not work with cross-compiled Catch2
     # Run all tests manually until https://github.com/catchorg/Catch2/issues/2223 is fixed
     failed_tests = []
@@ -45,11 +45,13 @@ def run_rlbox_tests(qemu: boot_cheribsd.GuestInstance, args: argparse.Namespace)
             continue
         try:
             qemu.checked_run(f"cd {args.build_dir} && ./{f.name}", timeout=5 * 60)
-        except boot_cheribsd.CommandFailedError as e:
-            boot_cheribsd.failure("Failed to run ", f, ": ", str(e), exit=False)
+        except boot_automation.CommandFailedError as e:
+            boot_automation.failure("Failed to run ", f, ": ", str(e), exit=False)
             failed_tests.append(f)
     if failed_tests:
-        boot_cheribsd.failure("The following tests failed:\n\t", "\n\t".join(x.name for x in failed_tests), exit=False)
+        boot_automation.failure(
+            "The following tests failed:\n\t", "\n\t".join(x.name for x in failed_tests), exit=False
+        )
     return not failed_tests
 
 

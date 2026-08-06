@@ -29,7 +29,7 @@
 import argparse
 from pathlib import Path
 
-from run_tests_common import boot_cheribsd, get_default_junit_xml_name, run_tests_main
+from run_tests_common import boot_automation, get_default_junit_xml_name, run_tests_main
 
 from pycheribuild.utils import get_global_config
 
@@ -40,20 +40,20 @@ def get_host_cmake_path(cmake_cache: Path) -> bytes:
             for line in f.readlines():
                 if line.startswith(b"CMAKE_COMMAND:INTERNAL="):
                     host_cmake_path = line[len(b"CMAKE_COMMAND:INTERNAL=") :].strip()
-                    boot_cheribsd.info("Host CMake path is ", host_cmake_path)
+                    boot_automation.info("Host CMake path is ", host_cmake_path)
                     return host_cmake_path
-    boot_cheribsd.info("Could not determine real CMake path, assuming /usr/bin/cmake")
+    boot_automation.info("Could not determine real CMake path, assuming /usr/bin/cmake")
     return b"/usr/bin/cmake"
 
 
-def test_setup(qemu: boot_cheribsd.GuestInstance, args: argparse.Namespace):
+def test_setup(qemu: boot_automation.GuestInstance, args: argparse.Namespace):
     if not args.extra_library_paths:
         # If the used passed extra library paths assume that those are correct.
         # Otherwise, set up the default LD_LIBRARY_PATH to include the sysroot
         # and the libraries from the build directory.
-        boot_cheribsd.set_ld_library_path_with_sysroot(qemu)
+        boot_automation.set_ld_library_path_with_sysroot(qemu)
         # Prefer the files from the build directory over the sysroot.
-        boot_cheribsd.prepend_ld_library_path(qemu, "/build/lib:/build/bin")
+        boot_automation.prepend_ld_library_path(qemu, "/build/lib:/build/bin")
     # If the user supplied test setup steps, run them now.
     if args.test_setup_commands:
         for command in args.test_setup_commands:
@@ -64,23 +64,23 @@ def test_setup(qemu: boot_cheribsd.GuestInstance, args: argparse.Namespace):
     cmake_cache = Path(args.build_dir, "CMakeCache.txt")
     host_cmake_path = get_host_cmake_path(cmake_cache)
     for ctest_file in Path(args.build_dir).rglob("CTestTestfile.cmake"):
-        boot_cheribsd.info("Updating references to ${CMAKE_COMMAND} in ", ctest_file)
+        boot_automation.info("Updating references to ${CMAKE_COMMAND} in ", ctest_file)
         ctest_contents = ctest_file.read_bytes()
         num_host_paths = ctest_contents.count(host_cmake_path)
         if num_host_paths > 0:
             if not host_cmake_path:
-                boot_cheribsd.failure("Cannot update host CMake path in ", ctest_file, exit=True)
+                boot_automation.failure("Cannot update host CMake path in ", ctest_file, exit=True)
                 continue
             new_contents = ctest_contents.replace(host_cmake_path, b"/cmake/bin/cmake")
             if not get_global_config().pretend:
                 ctest_file.write_bytes(new_contents)
-            boot_cheribsd.info("Updated ", num_host_paths, " references to ${CMAKE_COMMAND} in ", ctest_file)
+            boot_automation.info("Updated ", num_host_paths, " references to ${CMAKE_COMMAND} in ", ctest_file)
     # Add CMake/CTest to $PATH
     qemu.checked_run("export PATH=$PATH:/cmake/bin")
 
 
-def run_ctest_tests(qemu: boot_cheribsd.GuestInstance, args: argparse.Namespace) -> bool:
-    boot_cheribsd.info("Running tests with ctest")
+def run_ctest_tests(qemu: boot_automation.GuestInstance, args: argparse.Namespace) -> bool:
+    boot_automation.info("Running tests with ctest")
     ctest_args = ". --output-on-failure --test-timeout " + str(args.test_timeout)
     # Also write a junit XML result
     ctest_args += " --output-junit " + str(args.junit_xml)
@@ -95,8 +95,8 @@ def run_ctest_tests(qemu: boot_cheribsd.GuestInstance, args: argparse.Namespace)
             pretend_result=0,
             ignore_cheri_trap=args.ignore_cheri_trap,
         )
-    except boot_cheribsd.CommandFailedError as e:
-        boot_cheribsd.failure("Failed to run some tests: " + str(e), exit=False)
+    except boot_automation.CommandFailedError as e:
+        boot_automation.failure("Failed to run some tests: " + str(e), exit=False)
         return False
     return True
 
@@ -123,7 +123,7 @@ def add_args(parser: argparse.ArgumentParser):
 
 def adjust_args(args: argparse.Namespace):
     args.shared_mount_directories.append(
-        boot_cheribsd.SharedMount(args.cmake_install_dir, readonly=True, in_target="/cmake")
+        boot_automation.SharedMount(args.cmake_install_dir, readonly=True, in_target="/cmake")
     )
     args.junit_xml = get_default_junit_xml_name(args.junit_xml, args.build_dir)
 

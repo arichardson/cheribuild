@@ -34,7 +34,7 @@ import os
 import sys
 from pathlib import Path
 
-from run_tests_common import boot_cheribsd, junitparser, run_tests_main
+from run_tests_common import boot_automation, junitparser, run_tests_main
 
 LONG_NAME_FOR_BUILDDIR = "/build-dir-with-long-name-to-ensure-cwd-causes-buffer-overflow"
 
@@ -199,15 +199,15 @@ def create_junit_xml(builddir, name, tools):
     _create_junit_xml(builddir, name, tools)
     test_output = Path(builddir, "test-results.xml")
     if not test_output.exists():
-        boot_cheribsd.failure("Failed to create the JUnit XML file", exit=False)
+        boot_automation.failure("Failed to create the JUnit XML file", exit=False)
         return False
-    # boot_cheribsd.run_host_command(["head", "-n2", str(test_output)])
-    boot_cheribsd.run_host_command(["grep", "<testsuite", str(test_output)])
+    # boot_automation.run_host_command(["head", "-n2", str(test_output)])
+    boot_automation.run_host_command(["grep", "<testsuite", str(test_output)])
     return True
 
 
-def run_bodiagsuite(qemu: boot_cheribsd.GuestInstance, args: argparse.Namespace) -> bool:
-    boot_cheribsd.info("Running BODiagSuite")
+def run_bodiagsuite(qemu: boot_automation.GuestInstance, args: argparse.Namespace) -> bool:
+    boot_automation.info("Running BODiagSuite")
     assert not args.use_valgrind, "Not support for CheriBSD"
 
     if not args.junit_xml_only:
@@ -250,7 +250,7 @@ def main():
                 cmd += ["-j", str(args.jobs)]
             if args.use_valgrind:
                 cmd.append("-DUSE_VALGRIND")
-            boot_cheribsd.run_host_command(cmd, cwd=args.build_dir)
+            boot_automation.run_host_command(cmd, cwd=args.build_dir)
         if not create_junit_xml(Path(args.build_dir), args.junit_testsuite_name, args.tools):
             sys.exit("Failed to create JUnit xml")
         sys.exit()

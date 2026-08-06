@@ -35,7 +35,7 @@ import os
 from pathlib import Path
 
 from run_tests_common import (
-    boot_cheribsd,
+    boot_automation,
     finish_and_write_junit_xml_report,
     get_default_junit_xml_name,
     junitparser,
@@ -43,7 +43,7 @@ from run_tests_common import (
 )
 
 
-def setup_qtbase_tests(qemu: boot_cheribsd.QemuGuestInstance, args: argparse.Namespace):
+def setup_qtbase_tests(qemu: boot_automation.QemuGuestInstance, args: argparse.Namespace):
     if args.junit_xml is None:
         time_suffix = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%d-%H%M%S")
         args.junit_xml = Path(args.build_dir, ("test-results-" + time_suffix + ".xml"))
@@ -64,23 +64,23 @@ def setup_qtbase_tests(qemu: boot_cheribsd.QemuGuestInstance, args: argparse.Nam
     qemu.checked_run("mkdir -p ~/.local/share")  # needed for tst_QFile::moveToTrash()
     if not Path(args.build_dir, "tests/auto/corelib").is_dir():
         # Not running qtbase tests, set LD_LIBRARY_PATH to include QtBase libraries
-        boot_cheribsd.set_ld_library_path_with_sysroot(qemu)
+        boot_automation.set_ld_library_path_with_sysroot(qemu)
     if args.copy_libraries_to_tmpfs:
         try:
             copy_qt_libs_to_tmpfs_and_set_libpath(qemu, args)
-        except boot_cheribsd.CommandTimeoutError as e:
-            boot_cheribsd.failure("Timeout copying Qt libraries, will try to use smbfs instead: ", e, exit=False)
+        except boot_automation.CommandTimeoutError as e:
+            boot_automation.failure("Timeout copying Qt libraries, will try to use smbfs instead: ", e, exit=False)
             # Send CTRL+C in case the process timed out.
             qemu.sendintr()
             qemu.sendintr()
             qemu.expect_prompt(timeout=5 * 60)
-            boot_cheribsd.prepend_ld_library_path(qemu, "/build/lib")
+            boot_automation.prepend_ld_library_path(qemu, "/build/lib")
     else:
         # otherwise load the libraries from smbfs
-        boot_cheribsd.prepend_ld_library_path(qemu, "/build/lib")
+        boot_automation.prepend_ld_library_path(qemu, "/build/lib")
 
 
-def copy_qt_libs_to_tmpfs_and_set_libpath(qemu: boot_cheribsd.QemuGuestInstance, args):
+def copy_qt_libs_to_tmpfs_and_set_libpath(qemu: boot_automation.QemuGuestInstance, args):
     # Copy the libraries to tmpfs to avoid long loading times over smbfs
     qemu.checked_run("mkdir /tmp/qt-libs")
     num_libs = 0
@@ -91,7 +91,7 @@ def copy_qt_libs_to_tmpfs_and_set_libpath(qemu: boot_cheribsd.QemuGuestInstance,
             # don't use cp to copy a symlink from smbfs, this takes many seconds
             linkpath = os.readlink(str(lib))
             if os.path.pathsep in linkpath:
-                boot_cheribsd.failure("Unexpected link path for ", lib.absolute(), ": ", linkpath, exit=False)
+                boot_automation.failure("Unexpected link path for ", lib.absolute(), ": ", linkpath, exit=False)
                 continue
             qemu.checked_run(f"ln -sfn {linkpath} /tmp/qt-libs/{lib.name}")
         else:
@@ -100,11 +100,11 @@ def copy_qt_libs_to_tmpfs_and_set_libpath(qemu: boot_cheribsd.QemuGuestInstance,
             else:
                 qemu.checked_run(f"cp -fav /build/lib/{lib.name} /tmp/qt-libs/")
             num_libs += 1
-    boot_cheribsd.success("Copied ", num_libs, " files to tmpfs")
-    boot_cheribsd.prepend_ld_library_path(qemu, "/tmp/qt-libs")
+    boot_automation.success("Copied ", num_libs, " files to tmpfs")
+    boot_automation.prepend_ld_library_path(qemu, "/tmp/qt-libs")
 
 
-def run_subdir(qemu: boot_cheribsd.GuestInstance, subdir: Path, xml: junitparser.JUnitXml, build_dir: Path):
+def run_subdir(qemu: boot_automation.GuestInstance, subdir: Path, xml: junitparser.JUnitXml, build_dir: Path):
     tests = []
     for root, dirs, files in os.walk(str(subdir), topdown=True):
         for name in files:
@@ -125,8 +125,8 @@ def run_subdir(qemu: boot_cheribsd.GuestInstance, subdir: Path, xml: junitparser
                 f"fsync {test_xml.name}",
                 timeout=10 * 60,
             )
-        except boot_cheribsd.CommandFailedError as e:
-            boot_cheribsd.failure("Failed to run ", f.name, ": ", str(e), exit=False)
+        except boot_automation.CommandFailedError as e:
+            boot_automation.failure("Failed to run ", f.name, ": ", str(e), exit=False)
             # Send CTRL+C in case the process timed out.
             qemu.sendintr()
             qemu.sendintr()
@@ -134,7 +134,7 @@ def run_subdir(qemu: boot_cheribsd.GuestInstance, subdir: Path, xml: junitparser
         try:
             endtime = datetime.datetime.now(datetime.timezone.utc)
             qt_test = junitparser.JUnitXml.fromfile(str(test_xml))
-            boot_cheribsd.info("Results for ", f.name, ": ", qt_test)
+            boot_automation.info("Results for ", f.name, ": ", qt_test)
             if not isinstance(qt_test, junitparser.TestSuite):
                 raise ValueError("Got unexpected parse result loading JUnit Xml: " + qt_test.tostring())
             # pyrefly: ignore [unsupported-operation]
@@ -145,7 +145,7 @@ def run_subdir(qemu: boot_cheribsd.GuestInstance, subdir: Path, xml: junitparser
             qt_test.add_property("test_executable", str(f))
             xml.add_testsuite(qt_test)
         except Exception as e:
-            boot_cheribsd.failure("Error loading JUnit result for ", f.name, ": ", str(e), exit=False)
+            boot_automation.failure("Error loading JUnit result for ", f.name, ": ", str(e), exit=False)
             add_junit_failure(xml, f, str(e), starttime, test_xml)
 
 
@@ -168,7 +168,7 @@ def add_junit_failure(
     xml.add_testsuite(suite)
 
 
-def run_qtbase_tests(qemu: boot_cheribsd.GuestInstance, args: argparse.Namespace):
+def run_qtbase_tests(qemu: boot_automation.GuestInstance, args: argparse.Namespace):
     # TODO: also run the non-corelib tests
     xml = junitparser.JUnitXml()
     build_dir = Path(args.build_dir)
@@ -191,7 +191,7 @@ def run_qtbase_tests(qemu: boot_cheribsd.GuestInstance, args: argparse.Namespace
 
     for test_subset in args.test_subset:
         assert isinstance(test_subset, Path)
-        boot_cheribsd.info("Running qtbase tests for ", test_subset)
+        boot_automation.info("Running qtbase tests for ", test_subset)
         run_subdir(qemu, test_subset, xml, build_dir=build_dir)
     return finish_and_write_junit_xml_report(all_tests_starttime, xml, args.junit_xml)
 
@@ -205,7 +205,7 @@ def adjust_args(args: argparse.Namespace):
         for subdir in args.test_subset:
             path = Path(tests_root, subdir)
             if not path.is_dir():
-                boot_cheribsd.failure("Invalid --test-subset: ", path, exit=True)
+                boot_automation.failure("Invalid --test-subset: ", path, exit=True)
             relpath = os.path.relpath(str(path), str(tests_root))
             assert not relpath.startswith(os.path.pardir), "Invalid --test-subset " + str(tests_root / subdir)
             test_dirs.append(path)
