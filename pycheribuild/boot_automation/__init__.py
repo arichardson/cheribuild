@@ -239,6 +239,17 @@ PatternListType = Sequence[Union[str, typing.Pattern, type[pexpect.ExceptionPexp
 
 class GuestSpawnMixin(MixinBase):
     EXIT_ON_KERNEL_PANIC = True
+    PANIC_REGEXES: "typing.ClassVar[PatternListType]" = [
+        PANIC,
+        STOPPED,
+        PANIC_KDB,
+        PANIC_PAGE_FAULT,
+        PANIC_MORELLO_CAP_ABORT,
+        PANIC_IN_BACKTRACE,
+    ]
+
+    def handle_kernel_panic(self):
+        debug_kernel_panic(self)
 
     def expect_exact_ignore_panic(self, patterns, *, timeout: int):
         return super().expect_exact(patterns, timeout=timeout)
@@ -292,13 +303,13 @@ class GuestSpawnMixin(MixinBase):
     def _expect_and_handle_panic_impl(
         self, options: PatternListType, timeout_msg, *, ignore_timeout=True, expect_fn, timeout, **kwargs
     ) -> int:
-        panic_regexes = [PANIC, STOPPED, PANIC_KDB, PANIC_PAGE_FAULT, PANIC_MORELLO_CAP_ABORT, PANIC_IN_BACKTRACE]
+        panic_regexes = list(self.PANIC_REGEXES)
         for i in panic_regexes:
             assert i not in options
         try:
             i = expect_fn(list(options) + panic_regexes, timeout=timeout, **kwargs)
             if i > len(options):
-                debug_kernel_panic(self)
+                self.handle_kernel_panic()
                 if INTERACT_ON_KERNEL_PANIC:
                     info("Interating with QEMU due to --interact-on-kernel-panic")
                     self.interact()
