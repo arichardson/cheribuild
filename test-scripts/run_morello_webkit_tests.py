@@ -86,9 +86,9 @@ def run_webkit_tests(qemu: boot_cheribsd.CheriBSDInstance, args: argparse.Namesp
                 f" /source/PerformanceTests/SunSpider/tests/sunspider-1.0.2/{test}",
                 timeout=300,
             )
-        except boot_cheribsd.CheriBSDCommandFailed as e:
+        except boot_cheribsd.CommandFailedError as e:
             boot_cheribsd.failure("Failed to run ", test, ": ", str(e), exit=False)
-            if isinstance(e, boot_cheribsd.CheriBSDCommandTimeout):
+            if isinstance(e, boot_cheribsd.CommandTimeoutError):
                 t.result = junitparser.Failure(message="Command timed out")
                 # Send CTRL+C if the process timed out.
                 qemu.sendintr()

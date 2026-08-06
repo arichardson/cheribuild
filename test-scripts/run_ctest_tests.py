@@ -95,7 +95,7 @@ def run_ctest_tests(qemu: boot_cheribsd.CheriBSDInstance, args: argparse.Namespa
             pretend_result=0,
             ignore_cheri_trap=args.ignore_cheri_trap,
         )
-    except boot_cheribsd.CheriBSDCommandFailed as e:
+    except boot_cheribsd.CommandFailedError as e:
         boot_cheribsd.failure("Failed to run some tests: " + str(e), exit=False)
         return False
     return True

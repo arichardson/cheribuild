@@ -73,9 +73,9 @@ def run_meson_tests(qemu: boot_cheribsd.CheriBSDInstance, args: argparse.Namespa
                 timeout=ti.timeout or 10 * 60,
             )
             # TODO: TAP protocol parsing instead of using 0/1 return code.
-        except boot_cheribsd.CheriBSDCommandFailed as e:
+        except boot_cheribsd.CommandFailedError as e:
             boot_cheribsd.failure("Failed to run ", ti.name, ": ", str(e), exit=False)
-            if isinstance(e, boot_cheribsd.CheriBSDCommandTimeout):
+            if isinstance(e, boot_cheribsd.CommandTimeoutError):
                 t.result = junitparser.Failure(message="Command timed out")
                 # Send CTRL+C if the process timed out.
                 qemu.sendintr()

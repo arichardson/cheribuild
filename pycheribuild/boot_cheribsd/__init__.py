@@ -185,7 +185,7 @@ class PretendSpawn(pexpect.spawn):
         super().sendline(s)
 
 
-class CheriBSDCommandFailed(Exception):  # noqa: N818
+class CommandFailedError(Exception):
     def __init__(self, *args, execution_time: datetime.timedelta):
         super().__init__(*args)
         self.execution_time = execution_time
@@ -194,11 +194,11 @@ class CheriBSDCommandFailed(Exception):  # noqa: N818
         return "".join(map(str, self.args))
 
 
-class CheriBSDCommandTimeout(CheriBSDCommandFailed):
+class CommandTimeoutError(CommandFailedError):
     pass
 
 
-class CheriBSDMatchedErrorOutput(CheriBSDCommandFailed):
+class MatchedErrorOutputError(CommandFailedError):
     pass
 
 
@@ -684,26 +684,26 @@ def run_cheribsd_command(
     i = qemu.expect(results, timeout=timeout, pretend_result=3)
     runtime = datetime.datetime.now() - starttime
     if i == 0:
-        raise CheriBSDCommandFailed("/bin/sh: command not found: ", cmd, execution_time=runtime)
+        raise CommandFailedError("/bin/sh: command not found: ", cmd, execution_time=runtime)
     elif i == 1:
-        raise CheriBSDCommandFailed("Missing shared library dependencies: ", cmd, execution_time=runtime)
+        raise CommandFailedError("Missing shared library dependencies: ", cmd, execution_time=runtime)
     elif i == 2:
-        raise CheriBSDCommandTimeout("timeout running ", cmd, execution_time=runtime)
+        raise CommandTimeoutError("timeout running ", cmd, execution_time=runtime)
     elif i == 3:
         success("ran '", cmd, "' successfully (in ", runtime.total_seconds(), "s)")
     elif i == 4:
-        raise CheriBSDCommandFailed("Detected line continuation, cannot handle this yet! ", cmd, execution_time=runtime)
+        raise CommandFailedError("Detected line continuation, cannot handle this yet! ", cmd, execution_time=runtime)
     elif i == error_output_index:
         # wait up to 20 seconds for a prompt to ensure the full output has been printed
         qemu.expect_prompt(timeout=20, ignore_timeout=True)
         qemu.flush()
-        raise CheriBSDMatchedErrorOutput("Matched error output ", error_output, " in ", cmd, execution_time=runtime)
+        raise MatchedErrorOutputError("Matched error output ", error_output, " in ", cmd, execution_time=runtime)
     elif i in cheri_trap_indices:
         # wait up to 20 seconds for a prompt to ensure the dump output has been printed
         qemu.expect_prompt(timeout=20, ignore_timeout=True)
         qemu.flush()
         if cheri_trap_fatal:
-            raise CheriBSDCommandFailed("Got CHERI TRAP!", execution_time=runtime)
+            raise CommandFailedError("Got CHERI TRAP!", execution_time=runtime)
         else:
             failure("Got CHERI TRAP!", exit=False)
 
@@ -743,16 +743,16 @@ def checked_run_cheribsd_command(
         qemu.flush()
         return True
     elif i == 2:
-        raise CheriBSDCommandFailed("Detected line continuation, cannot handle this yet! ", cmd, execution_time=runtime)
+        raise CommandFailedError("Detected line continuation, cannot handle this yet! ", cmd, execution_time=runtime)
     elif i == 3:
-        raise CheriBSDCommandTimeout(
+        raise CommandTimeoutError(
             "timeout after ", runtime, " running '", cmd, "': ", str(qemu), execution_time=runtime
         )
     elif i in cheri_trap_indices:
         # wait up to 20 seconds for a prompt to ensure the dump output has been printed
         qemu.expect_prompt(timeout=20, ignore_timeout=True)
         qemu.flush()
-        raise CheriBSDCommandFailed(
+        raise CommandFailedError(
             "Got CHERI trap running '", cmd, "' (after '", runtime.total_seconds(), "s)", execution_time=runtime
         )
     elif i == error_output_index:
@@ -760,7 +760,7 @@ def checked_run_cheribsd_command(
         qemu.expect_prompt(timeout=20, ignore_timeout=True)
         qemu.flush()
         assert isinstance(error_output, str)
-        raise CheriBSDMatchedErrorOutput(
+        raise MatchedErrorOutputError(
             "Matched error output '" + error_output + "' running '",
             cmd,
             "' (after '",
@@ -770,7 +770,7 @@ def checked_run_cheribsd_command(
         )
     else:
         assert i < len(results), str(i) + " >= len(" + str(results) + ")"
-        raise CheriBSDCommandFailed(
+        raise CommandFailedError(
             "error running '", cmd, "' (after '", runtime.total_seconds(), "s)", execution_time=runtime
         )
 
@@ -1306,7 +1306,7 @@ def mount_via_p9fs(d: SharedMount, qemu: QemuCheriBSDInstance, share_name: str) 
             f"kldload -n virtio_p9fs && mount -t p9fs -o trans=virtio{ro_flag} {share_name} '{d.in_target}'",
         )
         d.mounted = True
-    except CheriBSDCommandFailed:
+    except CommandFailedError:
         d.mounted = False
         return False
     if not d.readonly:
@@ -1319,7 +1319,7 @@ def mount_via_p9fs(d: SharedMount, qemu: QemuCheriBSDInstance, share_name: str) 
                     pretend_result=1,
                 )
                 qemu.cheribsd_issue_2617_fixed = True
-            except CheriBSDCommandFailed:
+            except CommandFailedError:
                 info("P9FS driver is not new enough to support running tests. Will unmount again.")
                 qemu.cheribsd_issue_2617_fixed = False
                 checked_run_cheribsd_command(qemu, f"rm -f /tmp/issue_2617.txt {d.in_target}/issue_2617.txt")
@@ -1343,7 +1343,7 @@ def mount_via_smb(d: SharedMount, qemu: QemuCheriBSDInstance, share_name: str) -
             )
             d.mounted = True
             return True
-        except CheriBSDMatchedErrorOutput as e:
+        except MatchedErrorOutputError as e:
             # If the smbfs connection timed out try once more. This can happen when multiple libc++ test jobs are
             # running on the same jenkins slaves so one of them might time out
             d.mounted = False
@@ -1393,7 +1393,7 @@ def runtests(
         except KeyboardInterrupt:
             result = False
             failure("Got CTRL+C while running tests", exit=False)
-        except CheriBSDCommandFailed as e:
+        except CommandFailedError as e:
             testtime = datetime.datetime.now() - run_tests_starttime
             failure("Command failed after ", testtime, " while running tests: ", str(e), "\n", str(qemu), exit=False)
         testtime = datetime.datetime.now() - run_tests_starttime
@@ -1721,7 +1721,7 @@ def _main(
                 test_setup_function=test_setup_function,
                 test_ld_preload_files=test_ld_preload_files,
             )
-        except CheriBSDCommandFailed as e:
+        except CommandFailedError as e:
             failure("Command failed while runnings tests: ", str(e), "\n", str(qemu), exit=False)
             traceback.print_exc(file=sys.stderr)
             tests_okay = False

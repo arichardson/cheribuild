@@ -91,7 +91,7 @@ def run_cheribsdtest(
             qemu.checked_run(f"mv -f /tmp/{binary_name}.xml /test-results/{binary_name}.xml")
             qemu.run(f"fsync /test-results/{binary_name}.xml")
         return exit_code == 0
-    except boot_cheribsd.CheriBSDCommandTimeout as e:
+    except boot_cheribsd.CommandTimeoutError as e:
         boot_cheribsd.failure("Timeout running cheribsdtest: " + str(e), exit=False)
         qemu.sendintr()
         qemu.sendintr()
@@ -99,7 +99,7 @@ def run_cheribsdtest(
         qemu.checked_run("pwd")
         time.sleep(10)
         return False
-    except boot_cheribsd.CheriBSDCommandFailed as e:
+    except boot_cheribsd.CommandFailedError as e:
         boot_cheribsd.failure("Failed to run: " + str(e), exit=False)
         return False
 
@@ -118,7 +118,7 @@ def run_cheribsd_test(qemu: boot_cheribsd.QemuCheriBSDInstance, args: argparse.N
     # check whether su works (this was broken until recently on the minimal images)
     try:
         qemu.checked_run("su -m tests -c id")
-    except boot_cheribsd.CheriBSDCommandFailed as e:
+    except boot_cheribsd.CommandFailedError as e:
         boot_cheribsd.failure("Failed to run su: ", e, exit=False)
         tests_successful = False
 
@@ -190,7 +190,7 @@ def run_cheribsd_test(qemu: boot_cheribsd.QemuCheriBSDInstance, args: argparse.N
             else:
                 try:
                     qemu.checked_run(f"cp -v /tmp/results.db {results_db}")
-                except boot_cheribsd.CheriBSDCommandFailed as e:
+                except boot_cheribsd.CommandFailedError as e:
                     boot_cheribsd.failure(f"Failed to copy results out of QEMU {e}\nTrying again...", exit=False)
                     qemu.checked_run(f"cp -v /tmp/results.db {results_db}")
                     qemu.checked_run(f"fsync {results_db}")
@@ -221,7 +221,7 @@ def run_cheribsd_test(qemu: boot_cheribsd.QemuCheriBSDInstance, args: argparse.N
                     " took: ",
                     datetime.datetime.now() - xml_conversion_start,
                 )
-    except boot_cheribsd.CheriBSDCommandTimeout as e:
+    except boot_cheribsd.CommandTimeoutError as e:
         boot_cheribsd.failure("Timeout running tests: " + str(e), exit=False)
         qemu.sendintr()
         qemu.sendintr()
@@ -229,7 +229,7 @@ def run_cheribsd_test(qemu: boot_cheribsd.QemuCheriBSDInstance, args: argparse.N
         qemu.checked_run("pwd")
         time.sleep(10)
         tests_successful = False
-    except boot_cheribsd.CheriBSDCommandFailed as e:
+    except boot_cheribsd.CommandFailedError as e:
         boot_cheribsd.failure("Failed to run: " + str(e), exit=False)
         boot_cheribsd.info("Trying to shut down cleanly")
         tests_successful = False
