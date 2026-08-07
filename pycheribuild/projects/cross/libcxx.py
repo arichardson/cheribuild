@@ -41,7 +41,7 @@ from .crosscompileproject import (
     DefaultInstallDir,
     GitRepository,
 )
-from .llvm import BuildCheriLLVM, BuildLLVMMonoRepoBase, BuildUpstreamLLVM, extra_llvm_lit_opts
+from .llvm import BuildCheriAllianceLLVM, BuildCheriLLVM, BuildLLVMMonoRepoBase, BuildUpstreamLLVM, extra_llvm_lit_opts
 from ..build_qemu import BuildQEMU
 from ..project import ComputedDefaultValue, ReuseOtherProjectDefaultTargetRepository
 from ..run_qemu import LaunchCheriBSD, LaunchFreeBSD
@@ -821,3 +821,63 @@ class BuildUpstreamLlvmLibs(_UpstreamLLVMMixin, _BuildLlvmRuntimes):
 
 class BuildUpstreamLlvmLibsWithHostCompiler(_HostCompilerMixin, BuildUpstreamLlvmLibs):
     target = "upstream-llvm-libs-with-host-compiler"
+
+
+class _CheriAllianceLLVMMixin(_BuildLlvmRuntimes if typing.TYPE_CHECKING else object):
+    llvm_project: "typing.ClassVar[type[BuildLLVMMonoRepoBase]]" = BuildCheriAllianceLLVM
+    _supported_architectures = (
+        CompilationTargets.CHERI_LINUX_RISCV64_PURECAP_093,
+        CompilationTargets.CHERI_LINUX_RISCV64,
+        CompilationTargets.CHERI_LINUX_AARCH64,
+    )
+
+
+class BuildCheriAllianceLlvmLibs(_CheriAllianceLLVMMixin, _BuildLlvmRuntimes):
+    target = "cheri-std093-llvm-libs"
+    _supported_architectures = CompilationTargets.ALL_CHERI_LINUX_TARGETS
+    # Debug builds enable libunwind's _LIBUNWIND_LOG tracing, whose %p/(void *) casts on capability
+    # typed arguments (unw_word_t etc.) don't type-check as real pointers and fail with -Werror=format.
+    default_build_type = BuildType.RELEASE
+
+    @classproperty
+    def cross_install_dir(self):
+        # These targets have no OS-provided libc++, so install straight to the sysroot
+        # like musl/libxo/libbsd do, rather than the default IN_BUILD_DIRECTORY.
+        return DefaultInstallDir.ROOTFS_LOCALBASE
+
+    def setup(self):
+        super().setup()
+        # The libcxx testsuite CMakeLists.txt in this branch calls serialize_lit_param() with a
+        # missing argument, so configuring with tests enabled fails outright. We only need the
+        # runtime libraries here, not the testsuite, so just disable it for all three runtimes
+        # (LIBCXX_INCLUDE_TESTS is set to True unconditionally above, overriding LLVM_INCLUDE_TESTS).
+        self.add_cmake_options(
+            LLVM_INCLUDE_TESTS=False,
+            LIBUNWIND_INCLUDE_TESTS=False,
+            LIBCXXABI_INCLUDE_TESTS=False,
+            LIBCXX_INCLUDE_TESTS=False,
+            _replace=True,
+        )
+        # LLVM_ENABLE_ASSERTIONS/LIBUNWIND_ENABLE_ASSERTIONS (set unconditionally above) force
+        # -UNDEBUG even in a Release build, which re-enables libunwind's trace-logging code and
+        # its capability/%p format bug.
+        self.add_cmake_options(LLVM_ENABLE_ASSERTIONS=False, LIBUNWIND_ENABLE_ASSERTIONS=False, _replace=True)
+        # These targets use musl, so libc++'s locale support needs to use musl's locale_base_api.
+        self.add_cmake_options(LIBCXX_HAS_MUSL_LIBC=True)
+
+    def configure(self, **kwargs):
+        # With --rtlib=compiler-rt, the clang driver looks up the builtins library under the
+        # resource dir's per-target runtime directory using a triple with an explicit "unknown"
+        # vendor component, e.g. <resourcedir>/lib/riscv64-unknown-linux-musl/libclang_rt.builtins.a.
+        # The builtins are already installed into the sysroot by the cheri-std093-compiler-rt-builtins
+        # dependency under the legacy name, so just symlink it into the location the driver expects
+        # before configuring (this project's own compiler sanity checks need it to already exist).
+        arch, os_name, env = self.target_info.target_triple.split("-")
+        per_target_dir = self.get_compiler_info(self.CC).get_resource_dir() / "lib" / f"{arch}-unknown-{os_name}-{env}"
+        self.makedirs(per_target_dir)
+        self.create_symlink(
+            self.install_dir / "lib" / f"libclang_rt.builtins-{self.triple_arch}.a",
+            per_target_dir / "libclang_rt.builtins.a",
+            print_verbose_only=False,
+        )
+        super().configure(**kwargs)
