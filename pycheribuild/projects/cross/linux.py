@@ -43,10 +43,10 @@ from ..project import (
 from ..run_qemu import LaunchQEMUBase
 from ..simple_project import StringConfigOption
 from ...config.chericonfig import CheriConfig
-from ...config.compilation_targets import CompilationTargets, LinuxGccTargetInfo
+from ...config.compilation_targets import CompilationTargets, LaunchLinuxInterface, LinuxGccTargetInfo
 from ...config.target_info import CPUArchitecture
 from ...processutils import get_compiler_info
-from ...utils import OSInfo, classproperty
+from ...utils import OSInfo, classproperty, is_jenkins_build
 
 
 class BuildLinux(CrossCompileAutotoolsProject):
@@ -329,7 +329,7 @@ class BuildMorelloLinux(BuildLinux):
             return "defconfig"
 
 
-class LaunchLinuxBase(LaunchQEMUBase, ABC):
+class LaunchLinuxBase(LaunchQEMUBase, LaunchLinuxInterface, ABC):
     do_not_add_to_targets = True
     forward_ssh_port = False
     qemu_user_networking = True
@@ -346,6 +346,16 @@ class LaunchLinuxBase(LaunchQEMUBase, ABC):
         # This is not enabled by default for AArch64
         self.qemu_options.can_boot_kernel_directly = True
         self.current_kernel = Path(kernel)
+        self.initramfs_path = Path(initramfs)
+
+    def run_tests(self):
+        extra_args = []
+        if not is_jenkins_build():
+            # Jenkins expects the test outputs to be saved to the CWD, otherwise we save them in the build root
+            tests_dir = self.config.build_root / "test-results" / self.target
+            self.makedirs(tests_dir)
+            extra_args.append(f"--test-output-dir={tests_dir}")
+        self.target_info.run_test_script("run_linux_tests.py", *extra_args)
 
 
 class LaunchUpstreamLinux(LaunchLinuxBase):
