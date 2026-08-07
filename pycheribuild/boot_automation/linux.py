@@ -53,9 +53,6 @@ from ._common import (
     success,
 )
 
-# Plain string, not a compiled regex: PANIC_REGEXES entries must work with both expect() (regex)
-# and expect_exact() (literal match, used by _set_pexpect_sh_prompt) -- pexpect's expect_exact()
-# rejects compiled re.Pattern objects.
 LINUX_PANIC = "Kernel panic - not syncing"
 
 
