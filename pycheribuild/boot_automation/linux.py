@@ -39,7 +39,6 @@
 # appears. There is also no interactive kernel debugger to fall back to on
 # panic (unlike FreeBSD's `db>`).
 import datetime
-import re
 import typing
 
 from ._common import (
@@ -54,7 +53,10 @@ from ._common import (
     success,
 )
 
-LINUX_PANIC = re.compile(r"Kernel panic - not syncing")
+# Plain string, not a compiled regex: PANIC_REGEXES entries must work with both expect() (regex)
+# and expect_exact() (literal match, used by _set_pexpect_sh_prompt) -- pexpect's expect_exact()
+# rejects compiled re.Pattern objects.
+LINUX_PANIC = "Kernel panic - not syncing"
 
 
 class QemuLinuxInstance(QemuGuestInstance):
