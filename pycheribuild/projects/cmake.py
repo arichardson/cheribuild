@@ -51,6 +51,9 @@ from ..utils import replace_one
 # pulled in the fixes.
 class BuildLibuv(CrossCompileCMakeProject):
     target = "libuv"
+    _supported_architectures = (
+        CompilationTargets.ALL_SUPPORTED_CHERIBSD_AND_HOST_TARGETS + CompilationTargets.ALL_LINUX_PURECAP_TARGETS
+    )
     repository = GitRepository(
         "https://github.com/libuv/libuv.git",
         temporary_url_override="https://github.com/arichardson/libuv.git",
@@ -109,7 +112,9 @@ class BuildCrossCompiledCMake(CMakeProject):
     default_directory_basename = "cmake"
     default_build_type = BuildType.RELEASE  # Don't include debug info by default
     cross_install_dir = DefaultInstallDir.ROOTFS_OPTBASE
-    _supported_architectures = CompilationTargets.ALL_SUPPORTED_CHERIBSD_TARGETS
+    _supported_architectures = (
+        CompilationTargets.ALL_SUPPORTED_CHERIBSD_TARGETS + CompilationTargets.ALL_LINUX_PURECAP_TARGETS
+    )
 
     def linkage(self):
         # We always want to build the CheriBSD CTest binary static so that we can use in QEMU without needing libuv.
