@@ -108,7 +108,6 @@ class BuildCrossCompiledCMake(CMakeProject):
 
     repository = ReuseOtherProjectDefaultTargetRepository(BuildCMake, do_update=True)
     target = "cmake-crosscompiled"  # Can't use cmake here due to command line option conflict
-    dependencies = ("libuv",)
     default_directory_basename = "cmake"
     default_build_type = BuildType.RELEASE  # Don't include debug info by default
     cross_install_dir = DefaultInstallDir.ROOTFS_OPTBASE
@@ -116,9 +115,18 @@ class BuildCrossCompiledCMake(CMakeProject):
         CompilationTargets.ALL_SUPPORTED_CHERIBSD_TARGETS + CompilationTargets.ALL_LINUX_PURECAP_TARGETS
     )
 
+    @classmethod
+    def dependencies(cls, config: CheriConfig) -> "tuple[str, ...]":
+        result = (*super().dependencies(config), "libuv")
+        xtarget = cls.get_crosscompile_target()
+        if not xtarget.is_native() and xtarget.target_info_cls.uses_alliance_llvm:
+            # Static linking needs libunwind/libc++abi/libc++, which aren't provided by the OS here.
+            result += ("cheri-std093-llvm-libs",)
+        return result
+
     def linkage(self):
         # We always want to build the CheriBSD CTest binary static so that we can use in QEMU without needing libuv.
-        assert "libuv" in self.dependencies
+        assert "libuv" in self.dependencies(self.config)
         return Linkage.STATIC
 
     @property
@@ -134,16 +142,34 @@ class BuildCrossCompiledCMake(CMakeProject):
         assert not self.compiling_for_host(), "Target is cross-compilation only"
         # Don't bother building the ncurses or Qt GUIs even if libs are available
         self.add_cmake_options(BUILD_CursesDialog=False, BUILD_QtDialog=False)
+        if self.target_info.is_linux():
+            # We don't build OpenSSL for these targets and don't need HTTPS support for ctest.
+            self.add_cmake_options(CMAKE_USE_OPENSSL=False)
+        if self.get_compiler_info(self.CC).version >= (18, 0, 0):
+            # Utilities/KWIML/include/kwiml/int.h computes a shift count from sizeof(intptr_t)<<3,
+            # which is 127 (not 63) for a 16-byte CHERI capability, an out-of-range/UB shift. Older
+            # clang tolerated folding that as a GNU extension warning; clang 18+ correctly refuses
+            # to treat it as a constant expression, turning the file-scope VLA into a hard error.
+            # Should be reported/fixed upstream; for now just skip the broken verification block
+            # (KWIML's own escape hatch for platforms without a directly usable intptr_t/uintptr_t).
+            self.CXXFLAGS.extend(["-DKWIML_INT_NO_INTPTR_T", "-DKWIML_INT_NO_UINTPTR_T"])
         # Prefer static libraries for 3rd-party dependencies
         self.add_cmake_options(BUILD_SHARED_LIBS=False)
         self.add_cmake_options(CMAKE_USE_SYSTEM_LIBRARY_LIBUV=True)
         self.add_cmake_options(HAVE_SSIZE_T=True)
-        if not (BuildLibuv.get_install_dir(self) / self.target_info.default_libdir / "libuv.a").exists():
-            # CMake can't find the static libuv due to a different libname which is installed as libuv_a.a
-            # for some older versions of libuv.
-            self.add_cmake_options(
-                LibUV_LIBRARY=BuildLibuv.get_install_dir(self) / self.target_info.default_libdir / "libuv_a.a"
-            )
+        libuv_install_dir = BuildLibuv.get_install_dir(self)
+        if not (libuv_install_dir / self.target_info.default_libdir / "libuv.a").exists():
+            # CMake can't always find the static libuv automatically: some older versions of libuv
+            # install it as libuv_a.a instead of libuv.a, and on Linux it ends up under usr/<libdir>
+            # rather than <libdir> (BuildLibuv doesn't set a Linux-specific install prefix).
+            for candidate in (
+                libuv_install_dir / self.target_info.default_libdir / "libuv_a.a",
+                libuv_install_dir / "usr" / self.target_info.default_libdir / "libuv.a",
+                libuv_install_dir / "usr" / self.target_info.default_libdir / "libuv_a.a",
+            ):
+                if candidate.exists():
+                    self.add_cmake_options(LibUV_LIBRARY=candidate)
+                    break
 
     def run_tests(self):
         # TODO: generate JUnit output once https://gitlab.kitware.com/cmake/cmake/-/merge_requests/6020 is merged
