@@ -1022,6 +1022,17 @@ class CheriLinuxTargetInfo(LinuxTargetInfoBase):
             sysroot_dir = self.config.sysroot_output_root / self.config.default_cheri_alliance_sdk_directory_name
         return sysroot_dir / "linux" / self.target.get_rootfs_target().generic_arch_suffix
 
+    @classmethod
+    def essential_compiler_and_linker_flags_impl(cls, *args, xtarget, **kwargs) -> "list[str]":
+        result = super().essential_compiler_and_linker_flags_impl(*args, xtarget=xtarget, **kwargs)
+        if not cls.uses_morello_llvm:
+            # cheri-std093-llvm-libs provides libunwind/libc++abi/libc++, but the compiler driver
+            # defaults to using the GCC libgcc_eh/libgcc_s names.
+            # We also want to use compiler-rt instead of libgcc -> --rtlib=compiler-rt.
+            # Finally, there's no libstdc++ here either, so select libc++.
+            result.extend(["--rtlib=compiler-rt", "--unwindlib=libunwind", "--stdlib=libc++"])
+        return result
+
 
 class CheriLinuxWithMorelloCompilerTargetInfo(CheriLinuxTargetInfo):
     uses_morello_llvm = True
