@@ -283,7 +283,9 @@ def _do_test_setup(
     test_ld_preload_files: "list[Path]",
     test_setup_function: "Optional[Callable[[QemuGuestInstance, argparse.Namespace], None]]" = None,
 ):
-    is_linux_guest = isinstance(qemu, linux.QemuLinuxInstance)
+    # Check the target OS rather than isinstance(qemu, linux.QemuLinuxInstance): in --pretend mode
+    # qemu is always a FakeQemuSpawn regardless of guest OS, so isinstance() would never match.
+    is_linux_guest = qemu.xtarget.target_info_cls.is_linux()
     shared_dirs = qemu.shared_dirs
     setup_tests_starttime = datetime.datetime.now()
     if not is_linux_guest:
