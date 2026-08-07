@@ -56,7 +56,7 @@ assert (_pexpect_dir / "pexpect/__init__.py").exists()
 assert str(_pexpect_dir.resolve()) in sys.path, str(_pexpect_dir) + " not found in " + str(sys.path)
 import pexpect  # noqa: E402
 
-from . import _common, freebsd  # noqa: E402
+from . import _common, freebsd, linux  # noqa: E402
 from ._common import (  # noqa: E402
     CommandFailedError,
     CommandTimeoutError,
@@ -85,6 +85,8 @@ from .freebsd import (  # noqa: E402
     set_ld_library_path_with_sysroot,
     setup_ssh_for_root_login,
 )
+from .linux import QemuLinuxInstance  # noqa: E402
+from ..config.compilation_targets import CompilationTargets, linux_test_architecture_key  # noqa: E402
 from ..config.target_info import CrossCompileTarget  # noqa: E402
 from ..processutils import keep_terminal_sane, run_and_kill_children_on_exit  # noqa: E402
 from ..qemu_utils import QemuOptions, qemu_supports_9pfs  # noqa: E402
@@ -103,6 +105,7 @@ __all__ = [
     "PretendSpawn",
     "QemuFreeBSDInstance",
     "QemuGuestInstance",
+    "QemuLinuxInstance",
     "SharedMount",
     "debug_kernel_panic",
     "failure",
@@ -118,6 +121,16 @@ __all__ = [
 ]
 
 SUPPORTED_ARCHITECTURES = dict(freebsd.SUPPORTED_ARCHITECTURES)
+SUPPORTED_ARCHITECTURES.update(
+    {
+        linux_test_architecture_key(x): x
+        for x in (
+            *CompilationTargets.ALL_UPSTREAM_LINUX_TARGETS,
+            *CompilationTargets.ALL_CHERI_LINUX_TARGETS,
+            *CompilationTargets.ALL_MORELLO_LINUX_TARGETS,
+        )
+    }
+)
 
 # Set directly by external callers (e.g. run_libcxx_tests.py sets this per-shard); read fresh on
 # every info()/warn()/success()/failure() call via _common._message_prefix(), not copied elsewhere.
@@ -152,7 +165,9 @@ def boot_guest(
     skip_ssh_setup=False,
     bios_path: "Optional[Path]" = None,
     boot_alternate_kernel_dir: "Optional[Path]" = None,
+    initramfs_image: "Optional[Path]" = None,
 ) -> QemuGuestInstance:
+    is_linux = qemu_options.xtarget.target_info_cls.is_linux()
     user_network_args = ""
     extra_qemu_args = []
     if shared_dirs is None:
@@ -192,20 +207,27 @@ def boot_guest(
     )
     qemu_args.extend(smp_args)
     qemu_args.extend(extra_qemu_args)
+    if initramfs_image is not None:
+        qemu_args.extend(["-initrd", str(initramfs_image)])
     kernel_commandline = []
-    if qemu_options.can_boot_kernel_directly and kernel_image and boot_alternate_kernel_dir:
-        kernel_commandline.append(f"kern.module_path={boot_alternate_kernel_dir}")
-        loader_kernel_dir = None
+    loader_kernel_dir: "Optional[Path]" = None
+    if is_linux:
+        kernel_commandline.append("init=/init")
     else:
-        loader_kernel_dir = boot_alternate_kernel_dir
-    if kernel_init_only:
-        kernel_commandline.append("init_path=/sbin/startup-benchmark.sh")
-    if skip_ssh_setup:
-        kernel_commandline.append("cheribuild.skip_sshd=1")
-        kernel_commandline.append("cheribuild.skip_entropy=1")
+        if qemu_options.can_boot_kernel_directly and kernel_image and boot_alternate_kernel_dir:
+            kernel_commandline.append(f"kern.module_path={boot_alternate_kernel_dir}")
+            loader_kernel_dir = None
+        else:
+            loader_kernel_dir = boot_alternate_kernel_dir
+        if kernel_init_only:
+            kernel_commandline.append("init_path=/sbin/startup-benchmark.sh")
+        if skip_ssh_setup:
+            kernel_commandline.append("cheribuild.skip_sshd=1")
+            kernel_commandline.append("cheribuild.skip_entropy=1")
     if kernel_commandline:
         if kernel_image is not None and qemu_options.can_boot_kernel_directly:
-            kernel_commandline.append("autoboot_delay=0")  # Avoid the 10-second delay when booting
+            if not is_linux:
+                kernel_commandline.append("autoboot_delay=0")  # Avoid the 10-second delay when booting
             qemu_args.append("-append")
             qemu_args.append(" ".join(kernel_commandline))
         else:
@@ -214,7 +236,7 @@ def boot_guest(
     qemu_starttime = datetime.datetime.now()
     if _SSH_SOCKET_PLACEHOLDER is not None:
         _SSH_SOCKET_PLACEHOLDER.close()
-    qemu_cls = QemuFreeBSDInstance
+    qemu_cls = linux.QemuLinuxInstance if is_linux else QemuFreeBSDInstance
     if get_global_config().pretend:
         qemu_cls = FakeQemuSpawn
     child = qemu_cls(
@@ -234,20 +256,23 @@ def boot_guest(
     else:
         child.logfile_read = sys.stdout
 
-    expected_kernel_abi_arg_to_regex = {
-        "hybrid": freebsd.CHERI_HYBRID_KERNEL_MSG,
-        "purecap": freebsd.CHERI_PURECAP_KERNEL_MSG,
-        "purecap-benchmark": freebsd.CHERI_PURECAP_BENCHMARK_KERNEL_MSG,
-        "any": None,
-    }
-    freebsd.boot_and_login_freebsd(
-        child,
-        starttime=qemu_starttime,
-        kernel_init_only=kernel_init_only,
-        network_iface=qemu_options.network_interface_name(),
-        expected_kernel_abi_msg=expected_kernel_abi_arg_to_regex[expected_kernel_abi],
-        loader_kernel_dir=loader_kernel_dir,
-    )
+    if is_linux:
+        linux.boot_and_login_linux(child, starttime=qemu_starttime)
+    else:
+        expected_kernel_abi_arg_to_regex = {
+            "hybrid": freebsd.CHERI_HYBRID_KERNEL_MSG,
+            "purecap": freebsd.CHERI_PURECAP_KERNEL_MSG,
+            "purecap-benchmark": freebsd.CHERI_PURECAP_BENCHMARK_KERNEL_MSG,
+            "any": None,
+        }
+        freebsd.boot_and_login_freebsd(
+            child,
+            starttime=qemu_starttime,
+            kernel_init_only=kernel_init_only,
+            network_iface=qemu_options.network_interface_name(),
+            expected_kernel_abi_msg=expected_kernel_abi_arg_to_regex[expected_kernel_abi],
+            loader_kernel_dir=loader_kernel_dir,
+        )
     return child
 
 
@@ -258,35 +283,38 @@ def _do_test_setup(
     test_ld_preload_files: "list[Path]",
     test_setup_function: "Optional[Callable[[QemuGuestInstance, argparse.Namespace], None]]" = None,
 ):
+    is_linux_guest = isinstance(qemu, linux.QemuLinuxInstance)
     shared_dirs = qemu.shared_dirs
     setup_tests_starttime = datetime.datetime.now()
-    # Print a backtrace and drop into the debugger on panic
-    qemu.run("sysctl debug.debugger_on_panic=1; sysctl debug.trace_on_panic=1")
-    # Enable userspace CHERI exception logging to aid debugging
-    qemu.run("sysctl machdep.log_user_cheri_exceptions=1 || sysctl machdep.log_cheri_exceptions=1")
-    if args.enable_coredumps:
-        for shared_dir in shared_dirs:
-            # If we are mounting /build or /test-results then set kern.corefile to point there:
-            if not shared_dir.readonly and shared_dir.in_target in ["/build", "/test-results"]:
-                qemu.run("sysctl kern.corefile=" + shared_dir.in_target + "/%N.%P.core")
-                break
-            else:
-                # Otherwise, place coredumps on tmpfs to avoid slowing down the tests.
-                qemu.run("sysctl kern.corefile=/tmp/%N.%P.core")
-        qemu.run("sysctl kern.coredump=1")
-    else:
-        # If not, disable coredumps, otherwise we get no space left on device errors
-        qemu.run("sysctl kern.coredump=0")
-    # ensure that /usr/local exists and if not create it as a tmpfs (happens in the minimal image)
-    # However, don't do it on the full image since otherwise we would install kyua to the tmpfs on /usr/local
-    # We can differentiate the two by checking if /boot/kernel/kernel exists since it will be missing in the minimal
-    # image
-    qemu.run(
-        "if [ ! -e /boot/kernel/kernel ]; then mkdir -p /usr/local && mount -t tmpfs -o size=300m tmpfs /usr/local; fi"
-    )
-    # Or this: if [ "$(ls -A $DIR)" ]; then echo "Not Empty"; else echo "Empty"; fi
-    qemu.run("if [ ! -e /opt ]; then mkdir -p /opt && mount -t tmpfs -o size=500m tmpfs /opt; fi")
-    qemu.run("df -ih")
+    if not is_linux_guest:
+        # Print a backtrace and drop into the debugger on panic
+        qemu.run("sysctl debug.debugger_on_panic=1; sysctl debug.trace_on_panic=1")
+        # Enable userspace CHERI exception logging to aid debugging
+        qemu.run("sysctl machdep.log_user_cheri_exceptions=1 || sysctl machdep.log_cheri_exceptions=1")
+        if args.enable_coredumps:
+            for shared_dir in shared_dirs:
+                # If we are mounting /build or /test-results then set kern.corefile to point there:
+                if not shared_dir.readonly and shared_dir.in_target in ["/build", "/test-results"]:
+                    qemu.run("sysctl kern.corefile=" + shared_dir.in_target + "/%N.%P.core")
+                    break
+                else:
+                    # Otherwise, place coredumps on tmpfs to avoid slowing down the tests.
+                    qemu.run("sysctl kern.corefile=/tmp/%N.%P.core")
+            qemu.run("sysctl kern.coredump=1")
+        else:
+            # If not, disable coredumps, otherwise we get no space left on device errors
+            qemu.run("sysctl kern.coredump=0")
+        # ensure that /usr/local exists and if not create it as a tmpfs (happens in the minimal image)
+        # However, don't do it on the full image since otherwise we would install kyua to the tmpfs on /usr/local
+        # We can differentiate the two by checking if /boot/kernel/kernel exists since it will be missing in the
+        # minimal image
+        qemu.run(
+            "if [ ! -e /boot/kernel/kernel ]; then mkdir -p /usr/local && "
+            "mount -t tmpfs -o size=300m tmpfs /usr/local; fi"
+        )
+        # Or this: if [ "$(ls -A $DIR)" ]; then echo "Not Empty"; else echo "Empty"; fi
+        qemu.run("if [ ! -e /opt ]; then mkdir -p /opt && mount -t tmpfs -o size=500m tmpfs /opt; fi")
+        qemu.run("df -ih")
     info("\nWill transfer the following archives: ", test_archives)
 
     def do_scp(src, dst="/"):
@@ -333,22 +361,27 @@ def _do_test_setup(
             do_scp(str(lib), "/tmp/preload/" + lib.name)
             ld_preload_target_paths.append(str(Path("/tmp/preload", lib.name)))
 
-    # List all available file system modules to check for 9P availability
-    run_guest_command(qemu, "find $(sysctl -n kern.module_path | tr ';' ' ') -maxdepth 1 -name \"*fs.ko\" -print")
+    if not is_linux_guest:
+        # List all available file system modules to check for 9P availability
+        run_guest_command(qemu, "find $(sysctl -n kern.module_path | tr ';' ' ') -maxdepth 1 -name \"*fs.ko\" -print")
 
     for index, d in enumerate(shared_dirs):
         qemu.run(f"mkdir -p '{d.in_target}'")
         share_name = f"qemu{index + 1}"
-        # Try p9fs first but if it fails, fall back to using SMBv1
         assert d.mounted is False
-        if qemu.can_use_p9fs:
-            if not freebsd.mount_via_p9fs(d, qemu, share_name):
-                # Fallback to smbfs on this iteration and don't try p9fs again
-                qemu.can_use_p9fs = False
-                info("9P mount failed, falling back to SMB mount.")
-        if qemu.can_use_smb:
-            if not freebsd.mount_via_smb(d, qemu, share_name):
-                qemu.can_use_smb = False
+        if is_linux_guest:
+            # Only 9pfs is supported for Linux guests (assumed to always be available; no SMB fallback).
+            linux.mount_via_9p_linux(d, qemu, share_name)
+        else:
+            # Try p9fs first but if it fails, fall back to using SMBv1
+            if qemu.can_use_p9fs:
+                if not freebsd.mount_via_p9fs(d, qemu, share_name):
+                    # Fallback to smbfs on this iteration and don't try p9fs again
+                    qemu.can_use_p9fs = False
+                    info("9P mount failed, falling back to SMB mount.")
+            if qemu.can_use_smb:
+                if not freebsd.mount_via_smb(d, qemu, share_name):
+                    qemu.can_use_smb = False
         if not d.mounted:
             qemu.shared_mount_failed = True
             failure(f"Failed to mount host directory {d.hostdir}.", exit=False)
@@ -455,6 +488,7 @@ def get_argument_parser() -> argparse.ArgumentParser:
     parser.add_argument("--kernel", default=None)
     parser.add_argument("--bios", default=None)
     parser.add_argument("--disk-image", default=None)
+    parser.add_argument("--initramfs", default=None, help="Path to an initramfs image (Linux guests only)")
     parser.add_argument(
         "--minimal-image",
         action="store_true",
@@ -711,6 +745,7 @@ def _main(
         write_disk_image_changes=args.write_disk_image_changes,
         boot_alternate_kernel_dir=args.alternate_kernel_rootfs_path,
         expected_kernel_abi=args.expected_kernel_abi,
+        initramfs_image=Path(args.initramfs) if args.initramfs else None,
     )
     success("Booting guest took: ", datetime.datetime.now() - boot_starttime)
 
