@@ -27,7 +27,7 @@
 from .crosscompileproject import CrossCompileAutotoolsProject, DefaultInstallDir, GitRepository, MakeCommandKind
 from .libbsd import BuildLibbsd
 from ...config.compilation_targets import CompilationTargets
-from ...utils import classproperty
+from ...utils import OSInfo, classproperty
 
 
 class BuildLibxo(CrossCompileAutotoolsProject):
@@ -49,6 +49,20 @@ class BuildLibxo(CrossCompileAutotoolsProject):
     def dependencies(cls, config) -> "tuple[str, ...]":
         return "libbsd", "libmd"
 
+    def check_system_dependencies(self) -> None:
+        super().check_system_dependencies()
+        if OSInfo.IS_MAC:
+            # /usr/bin/yacc is a wrapper that fails unless full Xcode (not just the Command
+            # Line Tools) is installed, so a mere presence check is not enough:
+            #   xcode-select: error: tool 'byacc' requires Xcode, but active developer
+            #   directory '/Library/Developer/CommandLineTools' is a command line tools instance
+            # `brew install byacc` puts a working binary earlier on PATH.
+            if not self.try_run_cmd(["byacc", "--version"], capture_output=True):
+                self.dependency_error(
+                    "System byacc is unusable",
+                    install_instructions=OSInfo.install_instructions("byacc", is_lib=False, homebrew="byacc"),
+                )
+
     def setup(self):
         super().setup()
         # These tests fail due to cross-compilation issues. Muslc's malloc
@@ -67,6 +81,7 @@ class BuildLibxo(CrossCompileAutotoolsProject):
         # Some files expect sys/queue.h to exist, but we can't add libbsd/include/bsd to the
         # include path without breaking the build, so just create a symlink in a temp dir.
         self.CFLAGS.append(str(self.build_dir / "libbsd-workaround"))
+        self.configure_args.append("--disable-gettext")
 
     def configure(self, **kwargs):
         # setup.sh does not re-run autoreconf if the 'configure' file exists,
