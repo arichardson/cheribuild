@@ -893,6 +893,8 @@ class LinuxTargetInfoBase(_ClangBasedTargetInfo, ABC):
     kernel_target: str
     musl_target: str
     compiler_rt_target: str
+    # libunwind/libc++abi/libc++ target for this family, if one exists yet (see libcxx.py).
+    llvm_libs_target: "Optional[str]" = None
     # The run-* target that boots this Linux family under QEMU (see pycheribuild/projects/cross/linux.py).
     run_target: str
 
@@ -926,7 +928,10 @@ class LinuxTargetInfoBase(_ClangBasedTargetInfo, ABC):
 
     @classmethod
     def base_sysroot_targets(cls, target: "CrossCompileTarget", config: "CheriConfig") -> "list[str]":
-        return [cls.kernel_target, cls.musl_target, cls.compiler_rt_target]
+        result = [cls.kernel_target, cls.musl_target, cls.compiler_rt_target]
+        if cls.llvm_libs_target:
+            result.append(cls.llvm_libs_target)
+        return result
 
     def _get_run_project(self, xtarget: "CrossCompileTarget", caller: AbstractProject) -> LaunchLinuxInterface:
         result = SimpleProject.get_instance_for_target_name(self.run_target, xtarget, caller.config, caller)
@@ -1015,6 +1020,7 @@ class CheriLinuxTargetInfo(LinuxTargetInfoBase):
     kernel_target = "linux-kernel"
     musl_target = "muslc"
     compiler_rt_target = "cheri-std093-compiler-rt-builtins"
+    llvm_libs_target = "cheri-std093-llvm-libs"
     run_target = "run-minimal-cheri-linux"
 
     @property
@@ -1042,6 +1048,8 @@ class CheriLinuxWithMorelloCompilerTargetInfo(CheriLinuxTargetInfo):
     uses_alliance_llvm = False
     uses_morello_llvm = True
     compiler_rt_target = "morello-compiler-rt-builtins-for-cheri-alliance-linux"
+    # cheri-std093-llvm-libs is only built by/for the CHERI Alliance LLVM toolchain.
+    llvm_libs_target = None
 
 
 class MorelloLinuxTargetInfo(LinuxTargetInfoBase):
