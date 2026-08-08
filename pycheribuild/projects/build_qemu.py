@@ -51,7 +51,7 @@ from .project import (
 from .simple_project import BoolConfigOption, OptionalBoolConfigOption, SimpleProject, StringConfigOption
 from ..config.compilation_targets import BaremetalFreestandingTargetInfo, CompilationTargets
 from ..config.config_loader_base import ConfigOptionHandle
-from ..processutils import cached_get_homebrew_prefix
+from ..processutils import cached_get_homebrew_prefix, get_program_version
 from ..utils import OSInfo
 
 
@@ -312,7 +312,18 @@ class BuildQEMUBase(AutotoolsProject):
                     alternative=f"{python_bin} -m pip install setuptools",
                 )
             )
-        self.configure_args.append(f"--python={python_bin}")
+        # python_bin may not be sys.executable (see above), so query its actual version.
+        python_bin_version = get_program_version(
+            python_bin, regex=b"Python\\s+(\\d+)\\.(\\d+)\\.?(\\d+)?", config=self.config
+        )
+        if python_bin_version >= (3, 12):
+            # QEMU's bundled meson is not compatible with Python >= 3.12, use the system meson instead.
+            # configure only allows --meson=meson if --python wasn't passed explicitly, so use the
+            # PYTHON environment variable to select the interpreter instead.
+            self.configure_args.append("--meson=meson")
+            self.configure_environment["PYTHON"] = str(python_bin)
+        else:
+            self.configure_args.append(f"--python={python_bin}")
 
         if self.config.create_compilation_db:
             self.make_args.set(V=1)  # Otherwise bear can't parse the compiler output
