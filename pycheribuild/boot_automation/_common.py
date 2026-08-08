@@ -201,6 +201,15 @@ class GuestSpawnMixin(MixinBase):
             exit=self.EXIT_ON_KERNEL_PANIC,
         )
 
+    def set_ld_library_path_with_sysroot(self) -> None:
+        """Point the dynamic linker at libraries in the mounted sysroot. Guest-OS-specific
+        subclasses may override this for platforms with a more complex sysroot/ABI layout
+        (see freebsd.py for CheriBSD's hybrid/purecap/non-CHERI split)."""
+        self.run(
+            "export LD_LIBRARY_PATH=/sysroot/lib:/sysroot/usr/lib:$LD_LIBRARY_PATH",
+            timeout=3,
+        )
+
     def expect_exact_ignore_panic(self, patterns, *, timeout: int):
         return super().expect_exact(patterns, timeout=timeout)
 

@@ -34,7 +34,7 @@ from run_tests_common import boot_automation, run_tests_main
 
 
 def run_rlbox_tests(qemu: boot_automation.GuestInstance, args: argparse.Namespace) -> bool:
-    boot_automation.set_ld_library_path_with_sysroot(qemu)
+    qemu.set_ld_library_path_with_sysroot()
     # Note: CTest does not work with cross-compiled Catch2
     # Run all tests manually until https://github.com/catchorg/Catch2/issues/2223 is fixed
     failed_tests = []

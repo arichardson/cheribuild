@@ -77,7 +77,7 @@ def add_args(parser: argparse.ArgumentParser):
 
 
 def setup_juliet_test_environment(qemu: boot_automation.GuestInstance, args: argparse.Namespace):
-    boot_automation.set_ld_library_path_with_sysroot(qemu)
+    qemu.set_ld_library_path_with_sysroot()
     if args.test_setup_commands:
         for command in args.test_setup_commands:
             qemu.checked_run(command)

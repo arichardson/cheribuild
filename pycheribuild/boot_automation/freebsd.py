@@ -114,6 +114,48 @@ class FreeBSDSpawnMixin(GuestSpawnMixin):
     def handle_kernel_panic(self):
         debug_kernel_panic(self)
 
+    def set_ld_library_path_with_sysroot(self) -> None:
+        non_cheri_libdir = "lib64"
+        cheri_libdir = "lib64c"
+        if not self.xtarget.is_hybrid_or_purecap_cheri():
+            local_dir = "usr/local"
+            if self.xtarget.target_info_cls.is_cheribsd():
+                local_dir += "/" + self.xtarget.generic_arch_suffix
+            self.run(
+                "export {var}=/{l}:/usr/{l}:/usr/local/{l}:/sysroot/{l}:/sysroot/usr/{l}:/sysroot/usr/local/{l}:"
+                "/sysroot/{prefix}/{l}:${var}".format(prefix=local_dir, l="lib", var="LD_LIBRARY_PATH"),
+                timeout=3,
+            )
+            return
+
+        purecap_install_prefix = "usr/local/" + self.xtarget.get_cheri_purecap_target().generic_arch_suffix
+        hybrid_install_prefix = "usr/local/" + self.xtarget.get_cheri_hybrid_target().generic_arch_suffix
+        nocheri_install_prefix = "usr/local/" + self.xtarget.get_non_cheri_target().generic_arch_suffix
+
+        noncheri_ld_lib_path_var = "LD_LIBRARY_PATH" if not self.xtarget.is_cheri_purecap() else "LD_64_LIBRARY_PATH"
+        cheri_ld_lib_path_var = "LD_LIBRARY_PATH" if self.xtarget.is_cheri_purecap() else "LD_64C_LIBRARY_PATH"
+        self.run(
+            f"export {noncheri_ld_lib_path_var}=/{non_cheri_libdir}:/usr/{non_cheri_libdir}:"
+            f"/usr/local/{non_cheri_libdir}:/sysroot/{non_cheri_libdir}:/sysroot/usr/{non_cheri_libdir}:"
+            f"/sysroot/{hybrid_install_prefix}/lib:/sysroot/usr/local/{non_cheri_libdir}:"
+            f"/sysroot/{nocheri_install_prefix}/lib:${noncheri_ld_lib_path_var}",
+            timeout=3,
+        )
+        self.run(
+            f"export {cheri_ld_lib_path_var}=/{cheri_libdir}:/usr/{cheri_libdir}:/usr/local/{cheri_libdir}:"
+            f"/sysroot/{cheri_libdir}:/sysroot/usr/{cheri_libdir}:/sysroot/usr/local/{cheri_libdir}:"
+            f"/sysroot/{purecap_install_prefix}/lib:${cheri_ld_lib_path_var}",
+            timeout=3,
+        )
+        if cheri_ld_lib_path_var == "LD_64C_LIBRARY_PATH":
+            self.run(
+                "export {var}=/{l}:/usr/{l}:/usr/local/{l}:/sysroot/{l}:/sysroot/usr/{l}:/sysroot/usr/local/{l}:"
+                "/sysroot/{prefix}/lib:${var}".format(
+                    prefix=purecap_install_prefix, l=cheri_libdir, var="LD_CHERI_LIBRARY_PATH"
+                ),
+                timeout=3,
+            )
+
 
 class FreeBSDInstance(FreeBSDSpawnMixin, GuestInstance):
     pass
@@ -155,48 +197,6 @@ def prepend_ld_library_path(qemu: GuestInstance, path: str):
     qemu.run(
         "export LD_CHERI_LIBRARY_PATH=" + path + ':$LD_CHERI_LIBRARY_PATH; echo "$LD_CHERI_LIBRARY_PATH"', timeout=3
     )
-
-
-def set_ld_library_path_with_sysroot(qemu: GuestInstance):
-    non_cheri_libdir = "lib64"
-    cheri_libdir = "lib64c"
-    if not qemu.xtarget.is_hybrid_or_purecap_cheri():
-        local_dir = "usr/local"
-        if qemu.xtarget.target_info_cls.is_cheribsd():
-            local_dir += "/" + qemu.xtarget.generic_arch_suffix
-        qemu.run(
-            "export {var}=/{l}:/usr/{l}:/usr/local/{l}:/sysroot/{l}:/sysroot/usr/{l}:/sysroot/usr/local/{l}:"
-            "/sysroot/{prefix}/{l}:${var}".format(prefix=local_dir, l="lib", var="LD_LIBRARY_PATH"),
-            timeout=3,
-        )
-        return
-
-    purecap_install_prefix = "usr/local/" + qemu.xtarget.get_cheri_purecap_target().generic_arch_suffix
-    hybrid_install_prefix = "usr/local/" + qemu.xtarget.get_cheri_hybrid_target().generic_arch_suffix
-    nocheri_install_prefix = "usr/local/" + qemu.xtarget.get_non_cheri_target().generic_arch_suffix
-
-    noncheri_ld_lib_path_var = "LD_LIBRARY_PATH" if not qemu.xtarget.is_cheri_purecap() else "LD_64_LIBRARY_PATH"
-    cheri_ld_lib_path_var = "LD_LIBRARY_PATH" if qemu.xtarget.is_cheri_purecap() else "LD_64C_LIBRARY_PATH"
-    qemu.run(
-        f"export {noncheri_ld_lib_path_var}=/{non_cheri_libdir}:/usr/{non_cheri_libdir}:/usr/local/{non_cheri_libdir}:"
-        f"/sysroot/{non_cheri_libdir}:/sysroot/usr/{non_cheri_libdir}:/sysroot/{hybrid_install_prefix}/lib:"
-        f"/sysroot/usr/local/{non_cheri_libdir}:/sysroot/{nocheri_install_prefix}/lib:${noncheri_ld_lib_path_var}",
-        timeout=3,
-    )
-    qemu.run(
-        f"export {cheri_ld_lib_path_var}=/{cheri_libdir}:/usr/{cheri_libdir}:/usr/local/{cheri_libdir}:"
-        f"/sysroot/{cheri_libdir}:/sysroot/usr/{cheri_libdir}:/sysroot/usr/local/{cheri_libdir}:"
-        f"/sysroot/{purecap_install_prefix}/lib:${cheri_ld_lib_path_var}",
-        timeout=3,
-    )
-    if cheri_ld_lib_path_var == "LD_64C_LIBRARY_PATH":
-        qemu.run(
-            "export {var}=/{l}:/usr/{l}:/usr/local/{l}:/sysroot/{l}:/sysroot/usr/{l}:/sysroot/usr/local/{l}:"
-            "/sysroot/{prefix}/lib:${var}".format(
-                prefix=purecap_install_prefix, l=cheri_libdir, var="LD_CHERI_LIBRARY_PATH"
-            ),
-            timeout=3,
-        )
 
 
 def setup_ssh_for_root_login(qemu: QemuGuestInstance):

@@ -82,7 +82,6 @@ from .freebsd import (  # noqa: E402
     QemuFreeBSDInstance,
     debug_kernel_panic,
     prepend_ld_library_path,
-    set_ld_library_path_with_sysroot,
     setup_ssh_for_root_login,
 )
 from .linux import QemuLinuxInstance  # noqa: E402
@@ -115,7 +114,6 @@ __all__ = [
     "maybe_decompress",
     "prepend_ld_library_path",
     "run_host_command",
-    "set_ld_library_path_with_sysroot",
     "success",
     "warn",
 ]

@@ -37,7 +37,7 @@ from run_tests_common import boot_automation, run_tests_main
 
 def run_libcxxrt_tests(qemu: boot_automation.GuestInstance, _: argparse.Namespace) -> bool:
     boot_automation.info("Running libcxxrt tests")
-    boot_automation.set_ld_library_path_with_sysroot(qemu)
+    qemu.set_ld_library_path_with_sysroot()
     qemu.run("export LIBUNWIND_PRINT_UNWINDING=1", timeout=2)
     qemu.run("export LIBUNWIND_PRINT_APIS=1", timeout=2)
     qemu.run("export LIBUNWIND_PRINT_DWARF=1", timeout=2)

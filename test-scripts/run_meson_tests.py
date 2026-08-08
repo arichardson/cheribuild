@@ -50,7 +50,7 @@ def do_setup(qemu: boot_automation.GuestInstance, args: argparse.Namespace):
             qemu.checked_run(command)
     else:
         # Otherwise, we just set up the default LD_LIBRARY_PATH.
-        boot_automation.set_ld_library_path_with_sysroot(qemu)
+        qemu.set_ld_library_path_with_sysroot()
     qemu.checked_run(f"cd {args.build_dir}")
 
 

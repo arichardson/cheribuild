@@ -64,7 +64,7 @@ def setup_qtbase_tests(qemu: boot_automation.QemuGuestInstance, args: argparse.N
     qemu.checked_run("mkdir -p ~/.local/share")  # needed for tst_QFile::moveToTrash()
     if not Path(args.build_dir, "tests/auto/corelib").is_dir():
         # Not running qtbase tests, set LD_LIBRARY_PATH to include QtBase libraries
-        boot_automation.set_ld_library_path_with_sysroot(qemu)
+        qemu.set_ld_library_path_with_sysroot()
     if args.copy_libraries_to_tmpfs:
         try:
             copy_qt_libs_to_tmpfs_and_set_libpath(qemu, args)

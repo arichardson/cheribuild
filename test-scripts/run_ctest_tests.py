@@ -51,7 +51,7 @@ def test_setup(qemu: boot_automation.GuestInstance, args: argparse.Namespace):
         # If the used passed extra library paths assume that those are correct.
         # Otherwise, set up the default LD_LIBRARY_PATH to include the sysroot
         # and the libraries from the build directory.
-        boot_automation.set_ld_library_path_with_sysroot(qemu)
+        qemu.set_ld_library_path_with_sysroot()
         # Prefer the files from the build directory over the sysroot.
         boot_automation.prepend_ld_library_path(qemu, "/build/lib:/build/bin")
     # If the user supplied test setup steps, run them now.

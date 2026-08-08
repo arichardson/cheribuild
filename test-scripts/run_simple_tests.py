@@ -36,7 +36,7 @@ from run_tests_common import boot_automation, run_tests_main
 
 def run_simple_test(qemu: boot_automation.QemuGuestInstance, args: argparse.Namespace) -> bool:
     if args.sysroot_dir is not None:
-        boot_automation.set_ld_library_path_with_sysroot(qemu)
+        qemu.set_ld_library_path_with_sysroot()
     boot_automation.info("Running tests")
     # TODO: copy over the logfile and enable coredumps?
     # Run tests with a two hour timeout:

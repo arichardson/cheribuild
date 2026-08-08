@@ -36,7 +36,7 @@ from run_tests_common import boot_automation, junitparser, run_tests_main
 
 
 def setup_qtwebkit_test_environment(qemu: boot_automation.GuestInstance, _: argparse.Namespace):
-    boot_automation.set_ld_library_path_with_sysroot(qemu)
+    qemu.set_ld_library_path_with_sysroot()
     qemu.run("export ICU_DATA=/sysroot/usr/local/share/icu/60.0.1")
     qemu.run("export LANG=en_US.UTF-8")
     qemu.run("echo '<h1>Hello World!</h1>' > /tmp/helloworld.html")
