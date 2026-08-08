@@ -267,7 +267,7 @@ class GuestSpawnMixin(MixinBase):
             assert i not in options
         try:
             i = expect_fn(list(options) + panic_regexes, timeout=timeout, **kwargs)
-            if i > len(options):
+            if i >= len(options):
                 self.handle_kernel_panic()
                 if INTERACT_ON_KERNEL_PANIC:
                     info("Interating with QEMU due to --interact-on-kernel-panic")
