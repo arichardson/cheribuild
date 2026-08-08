@@ -117,12 +117,16 @@ def _linker_supports_riscv_relaxations(linker: Path, config: CheriConfig, xtarge
 
 
 class _ClangBasedTargetInfo(TargetInfo, ABC):
+    # TODO: use an enum instead of three separate booleans.
     uses_alliance_llvm: bool = False
     uses_morello_llvm: bool = False
     uses_upstream_llvm: bool = False
 
     def __init__(self, target: CrossCompileTarget, project) -> None:
         super().__init__(target, project)
+        assert sum([self.uses_alliance_llvm, self.uses_morello_llvm, self.uses_upstream_llvm]) <= 1, (
+            "At most one of uses_alliance_llvm/uses_morello_llvm/uses_upstream_llvm may be set: " + repr(self)
+        )
         self._sdk_root_dir: Optional[Path] = None
 
     @property
@@ -1025,7 +1029,7 @@ class CheriLinuxTargetInfo(LinuxTargetInfoBase):
     @classmethod
     def essential_compiler_and_linker_flags_impl(cls, *args, xtarget, **kwargs) -> "list[str]":
         result = super().essential_compiler_and_linker_flags_impl(*args, xtarget=xtarget, **kwargs)
-        if not cls.uses_morello_llvm:
+        if cls.uses_alliance_llvm:
             # cheri-std093-llvm-libs provides libunwind/libc++abi/libc++, but the compiler driver
             # defaults to using the GCC libgcc_eh/libgcc_s names.
             # We also want to use compiler-rt instead of libgcc -> --rtlib=compiler-rt.
@@ -1035,6 +1039,7 @@ class CheriLinuxTargetInfo(LinuxTargetInfoBase):
 
 
 class CheriLinuxWithMorelloCompilerTargetInfo(CheriLinuxTargetInfo):
+    uses_alliance_llvm = False
     uses_morello_llvm = True
     compiler_rt_target = "morello-compiler-rt-builtins-for-cheri-alliance-linux"
 
