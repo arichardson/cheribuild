@@ -135,7 +135,8 @@ class BuildSharedMimeInfo(CrossCompileMesonProject):
             apt="libxml2-utils",
             cheribuild_target="libxml2-native",
         )
-        self.check_required_system_tool("msgfmt", freebsd="gettext-tools")  # no way to disable translations
+        # no way to disable translations
+        self.check_required_system_tool("msgfmt", freebsd="gettext-tools", homebrew="gettext")
 
     def setup(self):
         super().setup()
