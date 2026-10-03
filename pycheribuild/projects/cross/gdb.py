@@ -158,6 +158,22 @@ class BuildGDBBase(CrossCompileAutotoolsProject):
                 if self.compiling_for_cheri_hybrid():
                     self.configure_args.append(f"--with-gmp={self.target_info.localbase}")
                     self.configure_args.append(f"--with-mpfr={self.target_info.localbase}")
+            if self.target_info.is_macos():
+                # Homebrew's gmp/mpfr are not on the default include/library search path, and GDB's ./configure
+                # checks (e.g. "checking for the correct version of gmp.h") probe the compiler directly rather
+                # than going through pkg-config, so check_required_pkg_config() succeeding is not sufficient.
+                self.configure_args.append(f"--with-gmp={self.get_homebrew_prefix('gmp')}")
+                self.configure_args.append(f"--with-mpfr={self.get_homebrew_prefix('mpfr')}")
+                # GDB's bundled zlib doesn't build against newer macOS SDKs: zutil.h's "#define fdopen(fd,mode)
+                # NULL" (used when it thinks fdopen() is unavailable) mangles the system <stdio.h> declaration
+                # of the real fdopen(), so use the system zlib instead of the bundled one.
+                self.configure_args.append("--with-system-zlib")
+                # gdbsupport/configure.ac only probes for C++11 support (AX_CXX_COMPILE_STDCXX(11, ...)), but
+                # the source (e.g. gdbsupport/enum-flags.h) unconditionally uses C++17 library features
+                # (std::void_t/conjunction/negation). This goes unnoticed on toolchains that already default
+                # to C++17 or later, but Apple's clang still defaults to an older dialect, so CXX_DIALECT ends
+                # up empty and the build fails. Force a C++17 dialect explicitly to work around this.
+                self.CXXFLAGS.append("-std=gnu++17")
             self.configure_args.append("--with-expat")
         else:
             self.configure_args.extend(["--without-python", "--without-expat", "--without-libunwind-ia64"])
